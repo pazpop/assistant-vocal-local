@@ -1,3 +1,5 @@
+![Jarvis — assistant vocal 100% local](assets/banner.svg)
+
 # 🎙️ Jarvis maison — assistant vocal local (STT → LLM → TTS)
 
 Assistant vocal francophone qui tourne **entièrement en local** : détection
