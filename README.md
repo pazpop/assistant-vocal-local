@@ -420,6 +420,11 @@ mots-clés ("météo", "il pleut", "quel temps fait"...) pour l'envoyer via
 `llm.ask_tool_direct`, sans historique ni reformulation par le LLM (voir
 [Pourquoi ces choix ?](#-pourquoi-ces-choix)).
 
+Une réponse est mise en cache 10 minutes par ville (en mémoire) : une
+question répétée dans ce délai ne resollicite pas Open-Meteo, pour rester
+respectueux d'une API gratuite. Seules les réponses réussies sont mises en
+cache, jamais une erreur.
+
 Ville introuvable ou Open-Meteo injoignable : la météo se désactive
 proprement, avec un message clair, sans affecter le reste de l'assistant.
 

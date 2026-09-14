@@ -10,6 +10,8 @@ La localisation vient uniquement de config.yml (LOCATION_GEOCODE_QUERY) —
 pas de géolocalisation IP ni d'autre repli : si elle ne peut pas être
 géocodée, la météo démarre désactivée avec une erreur claire.
 """
+import time
+
 import requests
 
 import config
@@ -17,6 +19,13 @@ from trigger import contient_une_phrase
 
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+
+# Durée de mise en cache d'une réponse météo (secondes) : évite de
+# resolliciter Open-Meteo à chaque question répétée sur la même ville dans
+# ce laps de temps (la météo ne change pas assez vite pour que ce soit
+# nécessaire) — bon citoyen vis-à-vis d'une API gratuite, et réponse
+# immédiate en cas de répétition.
+CACHE_TTL_SECONDES = 600
 
 # Table de correspondance des codes météo WMO (documentés par Open-Meteo :
 # https://open-meteo.com/en/docs) vers une description parlée en français.
@@ -144,6 +153,9 @@ class WeatherClient:
     ):
         self.ville = ville
         self.latitude, self.longitude, _ = geocoder(requete_geocodage)
+        # Une entrée par ville demandée (clé = paramètre `ville` reçu, None
+        # pour la ville par défaut) : {ville: (timestamp, réponse formatée)}.
+        self._cache: dict[str | None, tuple[float, str]] = {}
 
     def obtenir_meteo(self, ville: str | None = None) -> str:
         """Récupère la météo actuelle et la formule en une phrase naturelle.
@@ -152,7 +164,17 @@ class WeatherClient:
         au démarrage). Avec `ville`, géocode cette ville à la volée pour
         répondre à une question météo sur un autre lieu — un échec de
         géocodage ici ne désactive pas la météo pour autant, contrairement à
-        un échec au démarrage."""
+        un échec au démarrage.
+
+        Une réponse déjà obtenue pour la même ville dans les
+        `CACHE_TTL_SECONDES` dernières secondes est réutilisée telle quelle,
+        sans nouvel appel réseau (ni géocodage, ni prévisions) — seules les
+        réponses réussies sont mises en cache, jamais un message d'erreur."""
+        maintenant = time.time()
+        en_cache = self._cache.get(ville)
+        if en_cache is not None and maintenant - en_cache[0] < CACHE_TTL_SECONDES:
+            return en_cache[1]
+
         if ville is None:
             latitude, longitude, nom = self.latitude, self.longitude, self.ville
         else:
@@ -187,11 +209,13 @@ class WeatherClient:
         code = actuel.get("weather_code")
         description = DESCRIPTIONS_METEO.get(code, "des conditions incertaines")
 
-        return (
+        resultat = (
             f"À {nom}, il fait actuellement {description}, "
             f"{temperature} degrés, ressenti {ressenti} degrés, "
             f"vent de {vent} km/h."
         )
+        self._cache[ville] = (maintenant, resultat)
+        return resultat
 
     def executer_outil(self, nom: str, arguments: dict) -> str:
         """Dispatch pour le tool-calling du LLM (même patron que HomeAssistantClient)."""

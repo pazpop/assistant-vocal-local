@@ -15,6 +15,7 @@ def _client_factice() -> WeatherClient:
     client.ville = "Montréal"
     client.latitude = 45.78
     client.longitude = -74.01
+    client._cache = {}
     return client
 
 
@@ -163,3 +164,60 @@ def test_obtenir_meteo_ville_introuvable_ne_plante_pas(mock_geocoder):
 
     assert "Ville Imaginaire" in resultat
     assert "Montréal" in resultat  # rappelle la ville qu'il connaît
+
+
+@patch("weather.requests.get")
+def test_obtenir_meteo_reutilise_le_cache_sans_nouvel_appel_reseau(mock_get):
+    mock_reponse = MagicMock()
+    mock_reponse.json.return_value = {
+        "current": {"temperature_2m": 20.0, "apparent_temperature": 20.0, "weather_code": 0}
+    }
+    mock_get.return_value = mock_reponse
+
+    client = _client_factice()
+    premier = client.obtenir_meteo()
+    deuxieme = client.obtenir_meteo()
+
+    assert premier == deuxieme
+    mock_get.assert_called_once()  # le deuxième appel n'a pas retouché le réseau
+
+
+@patch("weather.requests.get")
+def test_obtenir_meteo_cache_separe_par_ville(mock_get):
+    mock_reponse = MagicMock()
+    mock_reponse.json.return_value = {
+        "current": {"temperature_2m": 20.0, "apparent_temperature": 20.0, "weather_code": 0}
+    }
+    mock_get.return_value = mock_reponse
+
+    client = _client_factice()
+    with patch("weather.geocoder", return_value=(48.85, 2.35, "Europe/Paris")):
+        client.obtenir_meteo(ville="Paris")
+    client.obtenir_meteo()  # ville par défaut : ne doit pas réutiliser le cache de Paris
+
+    assert mock_get.call_count == 2
+
+
+@patch("weather.requests.get")
+def test_obtenir_meteo_recontacte_apres_expiration_du_cache(mock_get):
+    mock_reponse = MagicMock()
+    mock_reponse.json.return_value = {
+        "current": {"temperature_2m": 20.0, "apparent_temperature": 20.0, "weather_code": 0}
+    }
+    mock_get.return_value = mock_reponse
+
+    client = _client_factice()
+    with patch("weather.time.time", return_value=1000.0):
+        client.obtenir_meteo()
+    with patch("weather.time.time", return_value=1000.0 + 601):  # après le TTL de 600s
+        client.obtenir_meteo()
+
+    assert mock_get.call_count == 2
+
+
+def test_obtenir_meteo_ne_met_jamais_une_erreur_en_cache():
+    client = _client_factice()
+    with patch("weather.geocoder", side_effect=RuntimeError("ville introuvable")):
+        client.obtenir_meteo(ville="Ville Imaginaire")
+
+    assert "Ville Imaginaire" not in client._cache
