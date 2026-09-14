@@ -1,0 +1,50 @@
+# Versions figées (==) plutôt que des bornes minimales (>=) : ce sont des
+# projets actifs qui publient parfois des changements cassants, et une
+# install fraîche dans plusieurs mois doit continuer à fonctionner à
+# l'identique. Pour mettre à jour une dépendance, teste-la volontairement
+# puis remonte le numéro ici — jamais l'inverse (une install qui dérive
+# toute seule).
+
+# STT
+faster-whisper==1.2.1
+# Ces deux paquets ne servent qu'au GPU NVIDIA (STT_DEVICE cuda dans
+# config.yml). Sur AMD ou CPU-only (voir le README), ils sont inutiles :
+# tu peux commenter ces deux lignes avant `pip install -r requirements.txt`.
+nvidia-cublas-cu12==12.9.2.10
+nvidia-cudnn-cu12==9.26.0.51
+
+# LLM (client API pour le serveur Ollama)
+ollama==0.6.2
+
+# TTS (Piper — OHF-Voice/piper1-gpl, GPL-3.0 depuis oct. 2025)
+piper-tts==1.8.0
+
+# Audio (capture micro et lecture)
+sounddevice==0.5.6
+numpy==2.4.6
+
+# Wake word
+openwakeword==0.6.0
+
+# VAD (vad.py) — déjà installé indirectement par openwakeword/piper-tts,
+# mais utilisé directement dans le code : déclaré explicitement pour ne pas
+# dépendre silencieusement du choix de dépendances d'un autre paquet.
+onnxruntime==1.30.0
+
+# Domotique locale (Home Assistant)
+requests==2.34.2
+
+# Configuration (config.yml à la racine du projet)
+PyYAML==6.0.3
+
+# Date/heure (fuseau horaire explicite, indépendant de l'horloge système)
+# Requis sous Windows : la base IANA n'est pas fournie nativement par l'OS
+# (elle l'est déjà sur Linux/macOS, où ce paquet est un no-op).
+tzdata==2026.4
+
+# Panneau de ressources local (dashboard.py) — CPU/RAM
+psutil==7.2.2
+# Idem, pour la VRAM GPU (dashboard.py) — utile seulement sur GPU NVIDIA.
+# Sur AMD/CPU-only, cette ligne peut être commentée : le panneau fonctionne
+# quand même, juste sans la section GPU.
+nvidia-ml-py==13.610.43

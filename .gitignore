@@ -1,0 +1,31 @@
+# Environnements Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Configuration personnelle (réglages + secrets, ex: jeton Home Assistant) :
+# jamais commitée. Seul config.yml.example (le modèle) est versionné.
+config.yml
+
+# Modèles téléchargés (gros fichiers binaires, se retéléchargent facilement)
+# On garde les dossiers et leur README grâce aux .gitkeep, mais pas leur contenu.
+models/**/*.onnx
+models/**/*.onnx.json
+models/**/*.bin
+models/**/*.pt
+models/whisper/**
+models/openwakeword/**
+!models/**/.gitkeep
+!models/**/README.md
+
+# Fichiers audio générés pendant les tests manuels
+*.wav
+*.mp3
+
+# Éditeurs / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

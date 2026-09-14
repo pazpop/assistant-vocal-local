@@ -1,0 +1,141 @@
+# Configuration de l'assistant vocal Jarvis.
+#
+# Copie ce fichier en "config.yml" (même dossier), puis adapte les valeurs à
+# ton besoin. "config.yml" n'est JAMAIS commité (voir .gitignore) : c'est
+# l'endroit où stocker tes réglages ET tes secrets personnels (jeton Home
+# Assistant, etc.), sans risquer de les publier par erreur.
+#
+# PowerShell : Copy-Item config.yml.example config.yml
+# macOS/Linux : cp config.yml.example config.yml
+
+audio:
+  # Seuil de détection de parole (VAD Silero, voir server/vad.py), entre 0
+  # et 1. 0.5 est la valeur par défaut recommandée par Silero — inutile d'y
+  # toucher sauf cas particulier.
+  vad_threshold: 0.5
+  # Secondes de silence (après avoir parlé) avant d'arrêter l'enregistrement.
+  silence_duration: 1.0
+  # Durée max d'une question, en secondes (sécurité anti-boucle infinie).
+  max_record_seconds: 15
+  # Force un micro précis plutôt que le périphérique par défaut de Windows.
+  # Trouve l'index ou le nom exact avec :
+  #   python -c "import sounddevice as sd; print(sd.query_devices())"
+  # Accepte un index (ex: 1) ou un nom/sous-chaîne (ex: "Realtek"). Laisse
+  # cette ligne absente pour garder le périphérique par défaut.
+  # input_device: 1
+
+wake_word:
+  # Modèle pré-entraîné fourni par openWakeWord.
+  model: hey_jarvis
+  # Juste pour l'affichage dans la console.
+  display_name: "Hey Jarvis"
+  # Score de confiance minimum (0-1) pour déclencher. Si "Hey Jarvis" n'est
+  # pas toujours reconnu, baisse-le (essaie 0.3-0.4) ; calibre avec
+  # `python main.py --debug-audio`.
+  threshold: 0.5
+
+conversation:
+  # Secondes d'attente d'une suite avant de repasser en veille (conversation
+  # continue : pas besoin de redire "Hey Jarvis" entre deux questions).
+  followup_timeout: 6.0
+  # Phrase dite dès que le mot-clé est détecté, pour confirmer que Jarvis
+  # écoute.
+  wake_word_prompt: "Oui, comment puis-je vous aider ?"
+  # Nombre d'échanges (question+réponse) gardés dans le contexte envoyé au
+  # LLM le temps de cette session ; au-delà, les plus anciens sont oubliés
+  # automatiquement. Pas de persistance sur disque : l'historique repart à
+  # zéro à chaque lancement de l'assistant (dis "oublie tout" pour le
+  # réinitialiser en cours de route).
+  max_echanges: 20
+
+stt:
+  # tiny / base / small / medium / large-v3 : plus gros = plus précis mais plus lent.
+  model_size: medium
+  # "cuda" (GPU NVIDIA) ou "cpu".
+  device: cuda
+  # float16 sur GPU ; passe à "int8" si device = cpu.
+  compute_type: float16
+  language: fr
+
+llm:
+  # Modèle Ollama à utiliser (doit être déjà récupéré via `ollama pull`).
+  model: qwen2.5:7b
+
+location:
+  # Nom utilisé dans les réponses parlées (météo, date/heure).
+  city: "Montréal"
+  # Requête de géolocalisation pour la météo (Open-Meteo) — précise la
+  # province/le pays si le nom seul est ambigu à l'international (ex:
+  # "Montréal, QC" plutôt qu'une autre ville du même nom ailleurs dans le monde).
+  geocode_query: "Montréal, QC"
+  # Fuseau horaire IANA, utilisé explicitement pour la date/heure plutôt que
+  # l'horloge système (évite un décalage si le fuseau Windows est mal réglé).
+  # Liste des identifiants valides :
+  # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+  timezone: "America/Toronto"
+
+alerts:
+  # URL du flux Atom d'alertes météo publiques (Environnement Canada, gratuit,
+  # sans compte) pour ta région. Trouve la tienne ici :
+  # https://www.canada.ca/en/environment-climate-change/services/weather-general-tools-resources/weatheroffice-online-services/atom-feeds.html
+  # Privilégie l'URL se terminant par "_f.xml" (français) plutôt que "_e.xml"
+  # (anglais). Laisse vide pour désactiver cette fonctionnalité.
+  feed_url: ""
+  # Intervalle (en minutes) entre deux vérifications automatiques en
+  # arrière-plan, pour que Jarvis t'avertisse spontanément d'une nouvelle
+  # alerte sans que tu aies à demander. Mets 0 pour ne garder que la
+  # vérification à la demande ("Hey Jarvis, y a-t-il une alerte météo ?").
+  check_interval_minutes: 15
+  # Aucune annonce PROACTIVE entre ces deux heures (HH:MM, fuseau
+  # location.timezone) — la nuit par défaut, pour ne jamais te réveiller. Une
+  # alerte qui apparaît pendant cette période est ignorée (pas rattrapée au
+  # réveil) : seule une alerte réellement nouvelle après la fin de la
+  # coupure est annoncée. Sans effet sur une question posée à la voix, qui
+  # fonctionne à toute heure. Mets les deux valeurs identiques
+  # pour désactiver cette coupure.
+  quiet_hours_start: "22:00"
+  quiet_hours_end: "08:00"
+
+home_assistant:
+  # Adresse de ta VM/machine Home Assistant. Utilise son IP (idéalement
+  # fixe/réservée dans ton routeur), PAS "homeassistant.local" : la
+  # résolution mDNS est peu fiable sous Windows sans Bonjour installé.
+  base_url: "http://192.168.1.100:8123"
+  # Passe à false si ta VM utilise un certificat HTTPS auto-signé (uniquement
+  # recommandé sur un réseau local de confiance).
+  verify_ssl: true
+  # Jeton d'accès longue durée : dans Home Assistant, Profil (en bas à
+  # gauche) > Sécurité > Jetons d'accès longue durée > Créer un jeton.
+  # Laisse vide pour désactiver la domotique (l'assistant démarre quand même,
+  # juste sans cette fonctionnalité).
+  token: ""
+  # Alias de noms pour le LLM : utile quand le `friendly_name` Home Assistant
+  # est verbeux/redondant (ex: appareils importés via un pont HomeKit, qui
+  # préfixent souvent le nom de la pièce en double : "Salon Lumière Salon
+  # Gauche"). Sans alias, c'est ce friendly_name brut qui est montré au LLM ;
+  # avec un alias, on lui montre plutôt le nom court que tu dis réellement à
+  # voix haute.
+  device_aliases: {}
+    # light.salon_lumiere_salon_gauche: "lumière salon gauche"
+
+dashboard:
+  # Passe à false pour désactiver complètement le panneau (aucun serveur
+  # HTTP lancé) si tu ne t'en sers pas.
+  enabled: true
+  # Port du panneau de ressources local (CPU/RAM/VRAM/latences du pipeline),
+  # accessible uniquement en local à http://127.0.0.1:<port>/ — l'URL exacte
+  # s'affiche aussi au démarrage de l'assistant.
+  port: 8790
+
+tts:
+  # Chemin vers la voix Piper, relatif à la racine du projet. "tom" est une
+  # voix masculine (medium) ; "siwis" (voix féminine) est une alternative
+  # très bien notée si tu préfères repasser dessus.
+  voice_model: "models/piper/fr_FR-tom-medium.onnx"
+  # True + `pip install onnxruntime-gpu` pour accélérer sur GPU (Piper est
+  # déjà rapide sur CPU, donc pas nécessaire dans la plupart des cas).
+  use_cuda: false
+  # Uniquement pour une voix multi-locuteurs (ex: "mls", 125 voix au choix,
+  # 0 à 124) : sans effet ici, "tom" étant mono-locuteur. Laisse cette ligne
+  # absente sauf si tu repasses à une voix multi-locuteurs.
+  # speaker_id: 0
