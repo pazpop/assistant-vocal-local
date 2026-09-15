@@ -137,8 +137,7 @@ assistant-vocal-local/
 ├── satellite/            # Futur client Raspberry Pi (vide pour l'instant)
 ├── models/                # Poids/voix téléchargés (ignoré par git, voir models/README.md)
 │   ├── piper/              # Voix Piper (.onnx + .onnx.json)
-│   ├── whisper/             # Cache faster-whisper (rempli automatiquement)
-│   └── openwakeword/         # Non utilisé (openWakeWord gère son propre cache dans .venv/)
+│   └── whisper/             # Cache faster-whisper (rempli automatiquement)
 ├── tests/                 # Tests pytest (logique pure, sans matériel)
 ├── .venv/                 # Environnement virtuel (ignoré par git)
 ├── .gitignore

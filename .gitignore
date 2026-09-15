@@ -16,7 +16,6 @@ models/**/*.onnx.json
 models/**/*.bin
 models/**/*.pt
 models/whisper/**
-models/openwakeword/**
 !models/**/.gitkeep
 !models/**/README.md
 
