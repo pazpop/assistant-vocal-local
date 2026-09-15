@@ -107,14 +107,10 @@ TIMER_TOOLS = [
 
 
 # Phrases qui déclenchent une demande liée aux minuteurs — démarrer, lister
-# ou annuler (comparaison en minuscules). Comme pour la météo/date-heure
-# (voir weather.py), utilisées pour envoyer la question au LLM sans
-# historique de conversation via llm.ask_tool_direct : sans ça, dès qu'un
-# minuteur a déjà été manipulé dans la conversation, qwen2.5:7b saute
-# parfois l'appel à l'outil et invente une confirmation de succès — sans
-# jamais réellement démarrer/annuler le minuteur. Sans historique, rien à
-# imiter, donc rien à halluciner. Les trois outils sont fournis ensemble ;
-# le LLM choisit celui qui correspond à la question.
+# ou annuler (comparaison en minuscules), utilisées pour router vers
+# llm.ask_tool_direct (voir la docstring de cette méthode pour le pourquoi de
+# l'absence d'historique). Les trois outils sont fournis ensemble ; le LLM
+# choisit celui qui correspond à la question.
 TIMER_TRIGGER_PHRASES = (
     "minuteur",
     "chronomètre",

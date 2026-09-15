@@ -50,9 +50,8 @@ ALERT_TOOLS = [
 ]
 
 # Phrases qui déclenchent une question d'alerte météo (comparaison en
-# minuscules). Comme pour la météo/date-heure/minuteur/domotique (voir
-# weather.py), utilisées pour envoyer la question au LLM sans historique de
-# conversation via llm.ask_tool_direct.
+# minuscules), utilisées pour router vers llm.ask_tool_direct (voir la
+# docstring de cette méthode pour le pourquoi de l'absence d'historique).
 ALERT_TRIGGER_PHRASES = (
     "alerte météo",
     "alerte meteo",

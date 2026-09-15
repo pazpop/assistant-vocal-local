@@ -26,14 +26,11 @@ from trigger import contient_une_phrase
 # barrière, imposée par le code plutôt que par la seule bonne volonté du LLM.
 DOMAINES_AUTORISES = {"light", "switch"}
 
-# Phrases qui déclenchent une commande domotique (comparaison en minuscules).
-# Comme pour la météo/date-heure/minuteur (voir weather.py), utilisées pour
-# envoyer la question au LLM sans historique de conversation via
-# llm.ask_tool_direct : sans ça, dès qu'un appareil a déjà été piloté dans la
-# conversation, qwen2.5:7b saute parfois l'appel à l'outil et invente une
-# confirmation de succès — sans jamais réellement agir sur l'appareil.
-# "éteindre" est vérifié en premier : les deux listes ne se chevauchent pas,
-# mais autant rester explicite plutôt que de se fier à cette absence.
+# Phrases qui déclenchent une commande domotique (comparaison en minuscules),
+# utilisées pour router vers llm.ask_tool_direct (voir la docstring de cette
+# méthode pour le pourquoi de l'absence d'historique). "éteindre" est
+# vérifié en premier : les deux listes ne se chevauchent pas, mais autant
+# rester explicite plutôt que de se fier à cette absence.
 ETEINDRE_TRIGGER_PHRASES = ("éteins", "éteint", "éteindre", "eteins", "eteint", "eteindre")
 ALLUMER_TRIGGER_PHRASES = ("allume", "allumer")
 

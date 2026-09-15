@@ -92,12 +92,10 @@ WEATHER_TOOLS = [
     },
 ]
 
-# Phrases qui déclenchent une question météo (comparaison en minuscules).
-# Utilisées pour ignorer l'historique de conversation pour cette question :
-# sur une question météo de suivi (ex: "et il fait beau ?" après avoir déjà
-# parlé météo dans la même conversation), qwen2.5:7b a fortement tendance à
-# répondre de mémoire — voire à halluciner de nouvelles valeurs — plutôt que
-# de rappeler l'outil. Sans historique, il n'y a rien à réutiliser.
+# Phrases qui déclenchent une question météo (comparaison en minuscules),
+# utilisées pour router vers llm.ask_tool_direct plutôt que le LLM générique
+# (voir la docstring de cette méthode pour le pourquoi de l'absence
+# d'historique).
 WEATHER_TRIGGER_PHRASES = (
     "météo",
     "il pleut",

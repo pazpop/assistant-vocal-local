@@ -53,11 +53,8 @@ DATE_TIME_TOOLS = [
 
 
 # Phrases qui déclenchent une question de date/heure (comparaison en
-# minuscules). Comme pour la météo (voir weather.WEATHER_TRIGGER_PHRASES),
-# utilisées pour envoyer la question au LLM sans l'historique de
-# conversation : sur une question de suivi (ex: "et à Paris ?" après avoir
-# déjà demandé l'heure), qwen2.5:7b répète l'heure précédente au lieu de
-# rappeler l'outil. Sans historique, il n'y a rien à réutiliser.
+# minuscules), utilisées pour router vers llm.ask_tool_direct (voir la
+# docstring de cette méthode pour le pourquoi de l'absence d'historique).
 DATE_TIME_TRIGGER_PHRASES = (
     "quelle heure",
     "quel jour",

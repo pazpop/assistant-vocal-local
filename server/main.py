@@ -13,6 +13,7 @@ import random
 import re
 import threading
 import time
+from typing import Callable
 
 import numpy as np
 
@@ -107,6 +108,53 @@ def construire_system_prompt(ha_client: HomeAssistantClient | None) -> str:
     return config.LLM_SYSTEM_PROMPT_TEMPLATE.format(appareils=appareils)
 
 
+def construire_routes_directes(
+    ha_client: HomeAssistantClient | None,
+    weather_client: WeatherClient | None,
+    timer_manager: TimerManager,
+    alertes_client: AlertesMeteoClient | None,
+) -> list[tuple[Callable[[str], list[dict] | None], Callable[[str, dict], str]]]:
+    """Construit, dans l'ordre de priorité, les routes vers llm.ask_tool_direct
+    (réponse déterministe pour un outil dont le résultat est déjà une phrase
+    prête à être dite — voir llm.ask_tool_direct). Chaque route est un couple
+    (matcher, tool_executor) où matcher(question) renvoie les outils à
+    utiliser si la question correspond, sinon None.
+
+    L'ordre compte : les alertes météo doivent être vérifiées avant la météo,
+    car "alerte météo" contient le mot "météo", qui matcherait sinon en
+    premier. Ajouter une future intégration revient à ajouter une entrée ici,
+    dans construire_outils, et son propre `demande_X` dans son module."""
+
+    def route_alerte(question: str) -> list[dict] | None:
+        return ALERT_TOOLS if demande_alerte(question) else None
+
+    def route_meteo(question: str) -> list[dict] | None:
+        return WEATHER_TOOLS if demande_meteo(question) else None
+
+    def route_date_heure(question: str) -> list[dict] | None:
+        return DATE_TIME_TOOLS if demande_date_heure(question) else None
+
+    def route_minuteur(question: str) -> list[dict] | None:
+        return TIMER_TOOLS if demande_minuteur(question) else None
+
+    def route_domotique(question: str) -> list[dict] | None:
+        action = demande_domotique(question)
+        if action is None:
+            return None
+        return [outil for outil in HA_TOOLS if outil["function"]["name"] == action]
+
+    routes: list[tuple[Callable[[str], list[dict] | None], Callable[[str, dict], str]]] = []
+    if alertes_client is not None:
+        routes.append((route_alerte, alertes_client.executer_outil))
+    if weather_client is not None:
+        routes.append((route_meteo, weather_client.executer_outil))
+    routes.append((route_date_heure, date_time.executer_outil))
+    routes.append((route_minuteur, timer_manager.executer_outil))
+    if ha_client is not None:
+        routes.append((route_domotique, ha_client.executer_outil))
+    return routes
+
+
 def construire_outils(
     ha_client: HomeAssistantClient | None,
     weather_client: WeatherClient | None,
@@ -115,28 +163,36 @@ def construire_outils(
 ) -> tuple[list[dict], "callable"]:
     """Combine les outils disponibles (domotique + météo + alertes + minuteur
     + date/heure) et construit le dispatcher unique à passer à
-    llm.ask_with_tools. Ajouter une future intégration revient à répéter ce
-    patron : un client, ses TOOLS, et une entrée ici."""
-    tools: list[dict] = list(TIMER_TOOLS) + list(DATE_TIME_TOOLS)
+    llm.ask_with_tools. Le dispatch est dérivé directement des noms d'outils
+    déclarés dans chaque TOOLS (au lieu de les relister ici à la main) :
+    ajouter une future intégration revient à ajouter une entrée dans
+    `sources`, rien d'autre."""
+    sources: list[tuple[list[dict], Callable[[str, dict], str]]] = [
+        (list(TIMER_TOOLS), timer_manager.executer_outil),
+        (list(DATE_TIME_TOOLS), date_time.executer_outil),
+    ]
     if ha_client is not None:
-        tools += HA_TOOLS
+        sources.append((HA_TOOLS, ha_client.executer_outil))
     if weather_client is not None:
-        tools += WEATHER_TOOLS
+        sources.append((WEATHER_TOOLS, weather_client.executer_outil))
     if alertes_client is not None:
-        tools += ALERT_TOOLS
+        sources.append((ALERT_TOOLS, alertes_client.executer_outil))
+
+    tools: list[dict] = [outil for liste, _ in sources for outil in liste]
+
+    noms = [outil["function"]["name"] for outil in tools]
+    doublons = {nom for nom in noms if noms.count(nom) > 1}
+    assert not doublons, f"Noms d'outils en collision entre modules : {doublons}"
+
+    dispatch = {
+        outil["function"]["name"]: executeur
+        for liste, executeur in sources
+        for outil in liste
+    }
 
     def executer_outil(nom: str, arguments: dict) -> str:
-        if ha_client is not None and nom in {"allumer", "eteindre"}:
-            return ha_client.executer_outil(nom, arguments)
-        if weather_client is not None and nom == "obtenir_meteo":
-            return weather_client.executer_outil(nom, arguments)
-        if alertes_client is not None and nom == "obtenir_alerte_meteo":
-            return alertes_client.executer_outil(nom, arguments)
-        if nom in {"demarrer_minuteur", "lister_minuteurs", "annuler_minuteur"}:
-            return timer_manager.executer_outil(nom, arguments)
-        if nom == "obtenir_date_heure":
-            return date_time.executer_outil(nom, arguments)
-        return f"Outil indisponible : {nom}"
+        executeur = dispatch.get(nom)
+        return executeur(nom, arguments) if executeur else f"Outil indisponible : {nom}"
 
     return tools, executer_outil
 
@@ -193,6 +249,9 @@ def main() -> None:
 
     timer_manager = TimerManager(on_expire=annoncer_fin_minuteur)
 
+    routes_directes = construire_routes_directes(
+        ha_client, weather_client, timer_manager, alertes_client
+    )
     tools_disponibles, executer_outil = construire_outils(
         ha_client, weather_client, timer_manager, alertes_client
     )
@@ -297,69 +356,27 @@ def main() -> None:
 
                 t_reponse = time.time()
                 print("Jarvis  : ", end="", flush=True)
-                if alertes_client is not None and demande_alerte(question):
-                    # Vérifié AVANT la météo : "alerte météo" contient le mot
-                    # "météo", qui déclencherait sinon la branche météo à la
-                    # place (WEATHER_TRIGGER_PHRASES matche sur "météo" seul).
-                    fragments = llm.ask_tool_direct(
-                        question,
-                        tools=ALERT_TOOLS,
-                        tool_executor=alertes_client.executer_outil,
-                        on_tool_call=on_tool_call,
-                    )
-                elif weather_client is not None and demande_meteo(question):
-                    # ask_tool_direct (pas ask_with_tools) : l'outil renvoie
-                    # déjà une phrase complète prête à être dite, donc on la
-                    # relaie telle quelle plutôt que de la faire reformuler
-                    # par le LLM (source de gabarits non remplis/de dérives
-                    # en anglais). Sans historique non plus : le LLM reste
-                    # libre d'extraire une ville explicitement nommée (ex:
-                    # "quel temps fait-il à Paris ?") sans répondre de mémoire.
-                    fragments = llm.ask_tool_direct(
-                        question,
-                        tools=WEATHER_TOOLS,
-                        tool_executor=weather_client.executer_outil,
-                        on_tool_call=on_tool_call,
-                    )
-                elif demande_date_heure(question):
-                    # Même raison que pour la météo juste au-dessus.
-                    fragments = llm.ask_tool_direct(
-                        question,
-                        tools=DATE_TIME_TOOLS,
-                        tool_executor=date_time.executer_outil,
-                        on_tool_call=on_tool_call,
-                    )
-                elif demande_minuteur(question):
-                    # Même raison que pour la météo/date-heure : sans ça, dès
-                    # qu'un minuteur a déjà été démarré dans la conversation,
-                    # le LLM saute parfois l'appel à l'outil et invente une
-                    # fausse confirmation de succès (minuteur jamais démarré).
-                    fragments = llm.ask_tool_direct(
-                        question,
-                        tools=TIMER_TOOLS,
-                        tool_executor=timer_manager.executer_outil,
-                        on_tool_call=on_tool_call,
-                    )
-                elif ha_client is not None and (action_ha := demande_domotique(question)) is not None:
-                    # Même raison que météo/date-heure/minuteur : constaté en
-                    # pratique, ex. "allume la cuisine" puis "éteins la
-                    # cuisine" dans la foulée — le LLM confirme l'extinction
-                    # sans jamais rappeler l'outil, la lumière reste allumée.
-                    fragments = llm.ask_tool_direct(
-                        question,
-                        tools=[outil for outil in HA_TOOLS if outil["function"]["name"] == action_ha],
-                        tool_executor=ha_client.executer_outil,
-                        on_tool_call=on_tool_call,
-                    )
-                elif tools_disponibles:
-                    fragments = llm.ask_with_tools(
-                        question,
-                        tools=tools_disponibles,
-                        tool_executor=executer_outil,
-                        on_tool_call=on_tool_call,
-                    )
+                # ask_tool_direct (pas ask_with_tools) pour ces routes : voir
+                # sa docstring pour le pourquoi (réponse relayée telle
+                # quelle, sans historique). Voir construire_routes_directes
+                # pour l'ordre des routes.
+                for matcher, tool_executor in routes_directes:
+                    tools = matcher(question)
+                    if tools is not None:
+                        fragments = llm.ask_tool_direct(
+                            question, tools=tools, tool_executor=tool_executor, on_tool_call=on_tool_call
+                        )
+                        break
                 else:
-                    fragments = llm.ask_stream(question)
+                    if tools_disponibles:
+                        fragments = llm.ask_with_tools(
+                            question,
+                            tools=tools_disponibles,
+                            tool_executor=executer_outil,
+                            on_tool_call=on_tool_call,
+                        )
+                    else:
+                        fragments = llm.ask_stream(question)
                 parler_en_flux(fragments, tts, file_audio)
                 print()
 

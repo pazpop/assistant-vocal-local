@@ -11,47 +11,26 @@ sans dépendre d'un service cloud tiers.
 > [Claude](https://claude.com) (Anthropic) pour l'architecture et
 > l'implémentation — voir [Crédits](#-crédits--inspiration).
 
-> Aujourd'hui : tout tourne sur un PC Windows avec GPU (`server/`).
-> Demain : des satellites Raspberry Pi (`satellite/`) captureront la voix et
-> délégueront le traitement lourd à ce même serveur (voir
-> [Roadmap](#️-roadmap)).
+Aujourd'hui, tout tourne sur un PC Windows avec GPU (`server/`) ; les
+satellites Raspberry Pi (`satellite/`) prévus pour capturer la voix ailleurs
+dans la maison sont sur la [roadmap](#️-roadmap), pas encore implémentés.
 
 ## 🎓 Pourquoi ce projet ?
 
-Je (pazpop) ne suis pas développeur de métier. J'ai commencé ce projet pour
-comprendre concrètement comment fonctionne un assistant vocal comme Siri —
-les briques qui s'assemblent (mot-clé, VAD, STT, LLM, TTS), et jusqu'où on
-peut aller en restant 100% local. C'est aussi une expérience d'un autre
-genre : utiliser une IA (Claude) pour concevoir et écrire la quasi-totalité
-du code, moi apportant les décisions de produit, les tests sur mon propre
-matériel, et beaucoup de questions.
+Je (pazpop) ne suis pas développeur de métier — j'ai commencé ce projet pour
+comprendre concrètement comment s'assemble un assistant vocal (mot-clé, VAD,
+STT, LLM, TTS) en restant 100% local, avec Claude pour l'architecture et
+l'implémentation. C'est un **POC** que j'espère un jour faire évoluer jusqu'à
+remplacer mes HomePod mini. Mes choix sont probablement discutables par
+endroits — je reste ouvert à toute amélioration.
 
-C'est pour l'instant un **POC** (preuve de concept), que j'espère un jour
-faire évoluer jusqu'à remplacer les HomePod mini d'Apple chez moi — d'où
-l'intérêt pour des satellites Raspberry Pi (voir [Roadmap](#️-roadmap)).
-
-Je le dis humblement : je n'ai pas les compétences d'un développeur
-professionnel ou senior, seulement l'envie de comprendre comment tout ça
-s'imbrique. Certains de mes choix sont donc probablement discutables — je
-reste ouvert à toute amélioration.
-
-### Impact environnemental
-
-Par souci de transparence sur l'usage de l'IA dans ce projet personnel :
-concevoir ce projet avec Claude a un coût énergétique réel, mais je n'ai
-aucun moyen fiable de le chiffrer. Anthropic ne publie pas la consommation
-par requête, et les estimations indépendantes qui circulent sur le sujet
-varient trop d'une étude à l'autre pour que j'en tire un chiffre honnête —
-je préfère le dire clairement plutôt qu'afficher un nombre qui aurait l'air
-précis sans l'être.
-
-Ce qui est vérifiable, en revanche : la partie qui tourne réellement au
-quotidien — Ollama, faster-whisper, Piper, tout ce qui fait fonctionner
-Jarvis une fois construit — s'exécute chez moi sur le réseau électrique du
-Québec, l'un des moins carbonés au monde (environ 35 g CO2/kWh, très
-majoritairement hydroélectrique, contre 400-500 g CO2/kWh en moyenne
-mondiale — source : Hydro-Québec). Un vrai avantage du choix "tout en
-local", indépendant de la phase de conception avec l'IA.
+**Transparence sur le coût énergétique** : concevoir ce projet avec Claude a
+un coût réel que je n'ai aucun moyen fiable de chiffrer (Anthropic ne publie
+pas la consommation par requête). Ce qui est vérifiable : une fois construit,
+Jarvis tourne chez moi sur le réseau électrique du Québec, très majoritairement
+hydroélectrique (environ 35 g CO2/kWh contre 400-500 g/kWh en moyenne
+mondiale — source : Hydro-Québec) — un vrai avantage du "tout en local",
+indépendant de la phase de conception.
 
 ## ✨ Fonctionnalités
 
@@ -159,7 +138,7 @@ assistant-vocal-local/
 ├── models/                # Poids/voix téléchargés (ignoré par git, voir models/README.md)
 │   ├── piper/              # Voix Piper (.onnx + .onnx.json)
 │   ├── whisper/             # Cache faster-whisper (rempli automatiquement)
-│   └── openwakeword/         # Modèles de mot-clé (rempli automatiquement)
+│   └── openwakeword/         # Non utilisé (openWakeWord gère son propre cache dans .venv/)
 ├── tests/                 # Tests pytest (logique pure, sans matériel)
 ├── .venv/                 # Environnement virtuel (ignoré par git)
 ├── .gitignore
@@ -261,9 +240,10 @@ winget install Microsoft.VisualStudioCode
    cd server
    python main.py
    ```
-   Premier lancement un peu plus long (téléchargement du modèle de mot-clé
-   par openWakeWord, dans `models/openwakeword/`). Dis ensuite **"Hey
-   Jarvis"**, pose ta question.
+   Premier lancement un peu plus long (téléchargement automatique du modèle
+   de mot-clé par openWakeWord, dans son propre dossier d'installation —
+   `.venv/`, donc à retélécharger si tu recrées ton venv). Dis ensuite
+   **"Hey Jarvis"**, pose ta question.
 
 ## 🏠 Domotique : Home Assistant en local (VM), sans Apple ni cloud
 
@@ -587,12 +567,10 @@ python main.py --debug-audio
 - **TTS (Piper)** : tourne sur CPU par défaut (`tts.use_cuda: false`) —
   largement suffisant en pratique, et ça laisse ton GPU disponible pour
   Whisper + Qwen2.5.
-- **Licence de Piper** : le dépôt historique `rhasspy/piper` est archivé
-  depuis octobre 2025 ; le développement continue sous
-  `OHF-Voice/piper1-gpl`, en **GPL-3.0** (contre MIT avant). Piper reste une
-  dépendance installée via `pip`, jamais redistribuée ici, donc ce projet
-  reste MIT (voir [LICENSE](LICENSE)) — vérifie les implications de la
-  GPL-3.0 avant toute redistribution plus large.
+- **Licence de Piper** : `OHF-Voice/piper1-gpl` est publié en **GPL-3.0**.
+  Piper reste une dépendance installée via `pip`, jamais redistribuée ici,
+  donc ce projet reste MIT (voir [LICENSE](LICENSE)) — vérifie les
+  implications de la GPL-3.0 avant toute redistribution plus large.
 - **Chemins de modèles** : `config.py` calcule les chemins vers `models/`
   relativement à sa propre position sur le disque, donc ça fonctionne quel
   que soit le dossier depuis lequel tu lances `python main.py`.
@@ -609,6 +587,16 @@ python main.py --debug-audio
 - **Sécurité du jeton Home Assistant** : vit uniquement dans `config.yml`,
   jamais en dur dans le code. `config.yml` est dans `.gitignore` — seul
   `config.yml.example` (sans secret) est commité.
+
+## 🧭 Limites connues
+
+- **Pas de compréhension de la négation** : la détection d'une commande
+  (météo, minuteur, domotique...) repose sur la simple présence d'une
+  phrase-déclencheuse dans ce que tu as dit (`trigger.contient_une_phrase`),
+  pas sur le sens complet de la phrase. Dire "n'allume pas la cuisine"
+  déclenche quand même l'action "allumer", puisque le mot "allume" y est
+  bien présent. Formule tes demandes à l'affirmatif (ex: "éteins la
+  cuisine") pour rester fiable.
 
 ## 🗺️ Roadmap
 
@@ -643,19 +631,17 @@ valider par des tests concrets avant de trancher.
 
 ## 🙏 Crédits & inspiration
 
-Ce projet est le fruit d'une collaboration entre **[pazpop](https://github.com/pazpop)**
-(conception, choix produit, tests sur le matériel réel) et **Claude**
-(Anthropic) (architecture, implémentation, recherche des dépendances) — d'où
-cette mention ici plutôt que dans `LICENSE`, dont le titulaire légal reste
-pazpop.
+Conçu par **[pazpop](https://github.com/pazpop)** (choix produit, tests sur
+le matériel réel) avec **Claude** (Anthropic) pour l'architecture et
+l'implémentation — le titulaire légal du projet reste pazpop (voir
+[LICENSE](LICENSE)).
 
-Architecture inspirée en partie de
+Inspiré en partie de
 [sosoj92/jarvis-assistant-vocal](https://github.com/sosoj92/jarvis-assistant-vocal)
-(streaming LLM→TTS, minuteur en `threading.Timer`, météo enrichie du vent),
-simplifiée ici à l'essentiel. La détection de fin de question par VAD
-(`server/vad.py`) s'inspire de [Lex-au/Vocalis](https://github.com/Lex-au/Vocalis),
-implémentée avec le modèle Silero déjà embarqué dans `faster-whisper`, sans
-dépendance supplémentaire.
+(streaming LLM→TTS, minuteur en `threading.Timer`, météo enrichie du vent) et
+de [Lex-au/Vocalis](https://github.com/Lex-au/Vocalis) pour la détection de
+fin de question par VAD (`server/vad.py`), réimplémentée avec le modèle
+Silero déjà embarqué dans `faster-whisper`.
 
 ## 📄 Licence
 

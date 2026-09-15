@@ -1,6 +1,7 @@
 """Détection du mot-clé (wake word) via openWakeWord."""
 import sounddevice as sd
 from openwakeword.model import Model
+from openwakeword.utils import download_models
 
 import config
 
@@ -12,6 +13,14 @@ class WakeWordDetector:
         threshold: float = config.WAKE_WORD_THRESHOLD,
         sample_rate: int = config.SAMPLE_RATE,
     ):
+        # Contrairement à ce qu'on pourrait attendre, Model(...) ne télécharge
+        # pas ses poids tout seul au premier lancement : il faut appeler
+        # download_models() explicitement avant, sans quoi le chargement
+        # échoue (fichier .onnx manquant). Sans effet si déjà présents
+        # (download_models() vérifie avant de retélécharger) — stockés dans
+        # l'installation d'openWakeWord elle-même (venv), pas dans models/.
+        download_models(model_names=[model_name])
+
         # inference_framework="onnx" : évite la dépendance à tflite-runtime,
         # dont les wheels sont peu fiables sous Windows/Python récents.
         self.model = Model(wakeword_models=[model_name], inference_framework="onnx")

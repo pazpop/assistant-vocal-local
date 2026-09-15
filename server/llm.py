@@ -164,9 +164,17 @@ class LanguageModel:
         fausse confirmation) — la réponse est alors toujours déterministe,
         jamais un texte inventé.
 
-        Jamais d'historique envoyé (comme l'ancien use_history=False) : rien
-        à réutiliser d'une question précédente, donc rien à halluciner. Le
-        tour reste quand même mémorisé pour la suite de la conversation.
+        Jamais d'historique envoyé (comme l'ancien use_history=False). Raison
+        (RÉFÉRENCE CANONIQUE — les modules météo/alertes/date-heure/minuteur/
+        domotique renvoient ici plutôt que de la répéter) : sur une question
+        de suivi (ex: "et il fait beau ?" ou "et la cuisine ?" après un
+        premier échange sur le même sujet dans la conversation), qwen2.5:7b a
+        une forte tendance à répondre "de mémoire" au lieu de rappeler
+        l'outil — au mieux en répétant une ancienne valeur, au pire en
+        inventant une confirmation d'action jamais exécutée. Sans historique
+        envoyé au modèle, il n'y a rien à réutiliser, donc rien à halluciner.
+        Le tour reste quand même mémorisé pour la suite de la conversation
+        (voir _enregistrer_echange) : seul l'appel à ollama.chat en est privé.
         """
         messages = [self._system_message, {"role": "user", "content": question}]
         response = ollama.chat(model=self.model, messages=messages, tools=tools)
