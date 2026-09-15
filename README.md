@@ -28,9 +28,9 @@ endroits — je reste ouvert à toute amélioration.
 un coût réel que je n'ai aucun moyen fiable de chiffrer (Anthropic ne publie
 pas la consommation par requête). Ce qui est vérifiable : une fois construit,
 Jarvis tourne chez moi sur le réseau électrique du Québec, très majoritairement
-hydroélectrique (environ 35 g CO2/kWh contre 400-500 g/kWh en moyenne
-mondiale — source : Hydro-Québec) — un vrai avantage du "tout en local",
-indépendant de la phase de conception.
+hydroélectrique ([34,5 g CO2 eq/kWh sur l'ensemble du cycle de vie](https://www.hydroquebec.com/sustainable-development/specialized-documentation/ghg-emissions.html),
+contre [environ 445-475 g CO2/kWh en moyenne mondiale en 2024](https://ember-energy.org/latest-insights/global-electricity-review-2025/global-electricity-trends/))
+— un vrai avantage du "tout en local", indépendant de la phase de conception.
 
 ## ✨ Fonctionnalités
 
