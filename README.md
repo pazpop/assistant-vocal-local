@@ -8,8 +8,9 @@ de mot-clé, reconnaissance vocale, réponses générées par un LLM local
 sans dépendre d'un service cloud tiers.
 
 > Conçu par [pazpop](https://github.com/pazpop), en collaboration avec
-> [Claude](https://claude.com) (Anthropic) pour l'architecture et
-> l'implémentation — voir [Crédits](#-crédits--inspiration).
+> [Claude](https://claude.com) (Anthropic) et [Lumo](https://lumo.proton.me)
+> (Proton) pour l'architecture et l'implémentation — voir
+> [Crédits](#-crédits--inspiration).
 
 Aujourd'hui, tout tourne sur un PC Windows avec GPU (`server/`) ; les
 satellites Raspberry Pi (`satellite/`) prévus pour capturer la voix ailleurs
@@ -17,16 +18,17 @@ dans la maison sont sur la [roadmap](#️-roadmap), pas encore implémentés.
 
 ## 🎓 Pourquoi ce projet ?
 
-Je (pazpop) ne suis pas développeur de métier — j'ai commencé ce projet pour
+Je ne suis pas développeur de métier — j'ai commencé ce projet pour
 comprendre concrètement comment s'assemble un assistant vocal (mot-clé, VAD,
-STT, LLM, TTS) en restant 100% local, avec Claude pour l'architecture et
-l'implémentation. C'est un **POC** que j'espère un jour faire évoluer jusqu'à
+STT, LLM, TTS) en restant 100% local, avec l'aide de Claude et de Lumo pour
+l'architecture et l'implémentation. C'est un **POC** que j'espère un jour faire évoluer jusqu'à
 remplacer mes HomePod mini. Mes choix sont probablement discutables par
 endroits — je reste ouvert à toute amélioration.
 
-**Transparence sur le coût énergétique** : concevoir ce projet avec Claude a
-un coût réel que je n'ai aucun moyen fiable de chiffrer (Anthropic ne publie
-pas la consommation par requête). Ce qui est vérifiable : une fois construit,
+**Transparence sur le coût énergétique** : concevoir ce projet avec des
+agents conversationnels a un coût réel que je n'ai aucun moyen fiable de
+chiffrer (ni Anthropic ni Proton ne publient la consommation par requête).
+Ce qui est vérifiable : une fois construit,
 Jarvis tourne chez moi sur le réseau électrique du Québec, très majoritairement
 hydroélectrique ([34,5 g CO2 eq/kWh sur l'ensemble du cycle de vie](https://www.hydroquebec.com/sustainable-development/specialized-documentation/ghg-emissions.html),
 contre [473 g CO2/kWh en moyenne mondiale en 2024](https://ember-energy.org/latest-insights/global-electricity-review-2025/global-electricity-trends/))
@@ -653,10 +655,8 @@ Migration de la stack vers Docker.
 
 ## 🙏 Crédits & inspiration
 
-Conçu par **[pazpop](https://github.com/pazpop)** (choix produit, tests sur
-le matériel réel) avec **Claude** (Anthropic) pour l'architecture et
-l'implémentation — le titulaire légal du projet reste pazpop (voir
-[LICENSE](LICENSE)).
+Conçu par **[pazpop](https://github.com/pazpop)** aidé par **Claude**
+(Anthropic) et **Lumo** (Proton) (voir [LICENSE](LICENSE)).
 
 Inspiré en partie de
 [sosoj92/jarvis-assistant-vocal](https://github.com/sosoj92/jarvis-assistant-vocal)
