@@ -628,6 +628,29 @@ valider par des tests concrets avant de trancher.
 - [ ] Tester la fiabilité des réponses du LLM sur des questions factuelles (scores, actualités, chiffres)
 - [ ] Décider de l'intégrer ou non selon ces résultats
 
+### Contrôle du PC
+
+Nouveau module permettant de demander à Jarvis d'exécuter des actions sur le
+PC. Exemple : *"Hey Jarvis, ouvre Firefox, va sur YouTube et lance la
+chanson Kammthaar de Ultra Vomit."*
+
+- [ ] Module de contrôle du PC (actions système, ouverture d'applications/sites)
+
+### Interface Web de conversation
+
+Ajout d'une interface web pour converser avec l'agent LLM (Open WebUI
+par-dessus Ollama).
+
+- [ ] Déployer Open WebUI par-dessus Ollama
+
+### Migration vers Docker
+
+Migration de la stack vers Docker.
+
+- [ ] Conteneuriser la stack (serveur, dépendances, modèles)
+- [ ] Pipeline CI/CD pour les mises à jour d'images Docker
+- [ ] Découpage de l'architecture en micro-services et communication par API REST
+
 ## 🙏 Crédits & inspiration
 
 Conçu par **[pazpop](https://github.com/pazpop)** (choix produit, tests sur
