@@ -33,7 +33,7 @@ Objectif : rendre le démarrage accessible à quelqu'un qui n'est pas développe
 
 ### CI — compatibilité Linux
 
-- [ ] Job GitHub Actions sur `ubuntu-latest` : `pip install -r requirements.txt` (lignes CUDA commentées) + `pytest tests/`. Valide que le code Python tourne sur Linux, sans Docker ni build d'image. Objectif aussi : moins besoin de relancer manuellement toute la suite après chaque petite modification — la CI attrape les régressions après coup.
+- [x] Job GitHub Actions sur `ubuntu-latest` (`.github/workflows/tests.yml`) : `pip install -r requirements.txt` (lignes CUDA retirées) + `pytest tests/`. Valide que le code Python tourne sur Linux, sans Docker ni build d'image. Objectif aussi : moins besoin de relancer manuellement toute la suite après chaque petite modification. Vérifié localement (YAML valide, commande de retrait des lignes NVIDIA testée) mais pas encore sur un vrai runner GitHub — à confirmer après le premier push.
 - **Limite à documenter, pas à découvrir plus tard** : les runners gratuits GitHub n'ont pas de GPU — cette CI ne validera jamais le vrai chemin `stt.device: cuda`, seulement le fallback CPU.
 - [ ] Tests pour `launch.py` — aujourd'hui zéro couverture automatisée, seulement testé à la main. Les parties qui touchent réseau/sous-process sont difficiles à tester tel quel, mais la logique pure (parsing des arguments, décision "les deux flags de purge en même temps", lecture/validation de `VERSION`) est testable sans lancer Jarvis ou Ollama.
 

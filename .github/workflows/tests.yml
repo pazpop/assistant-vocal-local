@@ -1,0 +1,37 @@
+name: Tests
+
+# Valide que le code Python tourne sur Linux (le poste de dev habituel est
+# Windows) — pas de GPU sur ce runner, donc seul le chemin stt.device: cpu
+# est réellement couvert, jamais stt.device: cuda (voir ARCHITECTURE.md).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # sounddevice (capture micro) a besoin de PortAudio au niveau système
+      # sous Linux, pas juste du paquet pip.
+      - name: Dépendance système audio (PortAudio)
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+
+      # nvidia-cublas-cu12/nvidia-cudnn-cu12 ne servent qu'au GPU NVIDIA
+      # (voir requirements.txt) — inutiles et lourds à télécharger ici.
+      - name: Retire les paquets GPU NVIDIA de requirements.txt
+        run: sed -i '/^nvidia-cublas-cu12/d;/^nvidia-cudnn-cu12/d' requirements.txt
+
+      - name: Installe les dépendances
+        run: pip install -r requirements.txt pytest
+
+      - name: Lance les tests
+        run: pytest tests/ -v
