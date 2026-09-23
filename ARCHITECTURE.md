@@ -218,17 +218,17 @@ qui le rendrait bloquant avant d'atteindre la pause).
 
 ## Vérification de version
 
-`launch.py` compare le fichier `VERSION` (racine du dépôt, une simple date
-`AAAA-MM-JJ`) à celui du dépôt GitHub à chaque démarrage — requête réseau
-courte (3s de timeout), silencieuse en cas d'échec, jamais bloquante pour
-Jarvis. Un message s'affiche dans les deux cas (à jour ou en retard), pas
-seulement en cas de retard :
+`launch.py` compare le fichier `VERSION` (racine du dépôt, `MAJOR.commits`
+— voir plus bas) à celui du dépôt GitHub à chaque démarrage — requête
+réseau courte (3s de timeout), silencieuse en cas d'échec, jamais
+bloquante pour Jarvis. Un message s'affiche dans les deux cas (à jour ou
+en retard), pas seulement en cas de retard :
 
 ```
-✅ Code à jour (version 2026-09-23).
+✅ Code à jour (version 1.19).
 ```
 ```
-⚠️  Nouvelle version disponible sur GitHub (locale : 2026-09-20, distante : 2026-09-23) — https://github.com/pazpop/assistant-vocal-local
+⚠️  Nouvelle version disponible sur GitHub (locale : 1.19, distante : 1.22) — https://github.com/pazpop/assistant-vocal-local
 ```
 
 **Ne met jamais rien à jour automatiquement** — `install.ps1` ne sait pas
@@ -239,15 +239,20 @@ ce n'est donc volontairement qu'un signal, pas une action. Désactivable via
 réseau que `launch.py` fait lui-même, en dehors de ceux de Jarvis
 documentés ailleurs dans ce fichier).
 
-Pas basé sur Git ni sur le nombre de commits (contrairement à d'autres
-projets de l'auteur) : `install.ps1` ne dépend volontairement pas de Git,
-donc rien ne garantit qu'un `.git/` existe localement pour compter quoi
-que ce soit — un simple fichier texte comparé à sa version distante
-fonctionne quelle que soit la méthode d'installation utilisée.
+**`VERSION` est mis à jour automatiquement**, pas à la main : un job GitHub
+Actions (`bump-version` dans `.github/workflows/tests.yml`) calcule
+`MAJOR.$(git rev-list --count HEAD)` à chaque push sur `main` (une fois
+les tests passés) et commit le résultat si besoin (`[skip ci]` pour ne pas
+se redéclencher lui-même) — sur le modèle d'arcadepipe. `MAJOR` (`"1"`
+actuellement) ne bouge qu'à la main dans le workflow, pour une vraie
+release ; le nombre de commits est le "mineur", recalculé automatiquement
+— approximatif par nature (le commit de bump lui-même n'est recompté qu'au
+push suivant), mais suffisant : `launch.py` ne fait qu'une comparaison
+différent/identique, pas un calcul exact.
 
-**Maintenance** : `VERSION` doit être incrémenté à la main à chaque
-changement notable (même discipline que les dates du "Fait" dans
-`ROADMAP.md`) — rien ne le fait automatiquement.
+Le calcul se fait uniquement côté CI (qui a Git) — `install.ps1` continue
+de ne pas en dépendre côté utilisateur final : `VERSION` reste un simple
+fichier texte, comparé tel quel, peu importe la méthode d'installation.
 
 ## Installation avancée
 

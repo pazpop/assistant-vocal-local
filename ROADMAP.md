@@ -8,7 +8,8 @@ Prochaines étapes. Détail technique de l'existant : [ARCHITECTURE.md](ARCHITEC
 
 - [x] Migré vers un venv Python dédié (`openwebui/.venv-openwebui/`, 2026-09-23) plutôt que Docker — évite d'imposer Docker Desktop pour un seul conteneur. Conflit vérifié qui empêche de le mettre dans le même venv que Jarvis : Open WebUI épingle `onnxruntime==1.26.0`, Jarvis épingle `onnxruntime==1.30.0` (utilisé par `openwakeword`/`vad.py`).
 - [x] Base de données (comptes, historique de chat) redirigée hors du venv via `DATA_DIR` (par défaut, Open WebUI l'écrit dans `site-packages/`, perdue si le venv est recréé).
-- [ ] Nettoyer le system prompt de `qwen2.5-coder` (contaminé par des exemples d'appels d'outils Jarvis, le modèle imite ces exemples au lieu de coder) — créer un modèle personnalisé dans Open WebUI (**Espace de travail > Modèles**) avec son propre system prompt, plutôt que de modifier la config globale ou la base SQLite directement. Reste à faire manuellement dans l'interface, aucune automatisation possible côté dépôt.
+- [x] `qwen2.5-coder` qui recrachait des appels d'outils bruts au lieu de coder (2026-09-23) — **diagnostic initial faux, corrigé après vérification dans le code source d'Open WebUI** : ce n'était pas un system prompt contaminé, mais les "Builtin Tools" (tâches, mémoire, recherche web...) d'Open WebUI, injectés à tous les modèles par défaut (`model.info.meta.capabilities.builtin_tools`, `True` par défaut). Correctif : modèle personnalisé (**Espace de travail > Modèles**) avec **Capacités > Outils intégrés** décoché. Confirmé par l'utilisateur : génère du code Python propre, plus d'appel d'outil halluciné. Manuel, dans l'interface — rien à automatiser côté dépôt.
+- **Bug connu en amont (pas le nôtre)** : `KeyError: 'model'` dans les logs d'Open WebUI (`background_tasks_handler`, appelé par `run_initial_title_generation`) — `main.py` construit un dict `title_ctx` sans clé `'model'` alors que `background_tasks_handler` s'attend à la trouver. Non fatal (capté par un `try/except`, casse juste la génération auto du titre de conversation pour ce message). Confirmé toujours présent en 0.11.4 (dernière version au moment de vérifier) — rien à faire de notre côté, pas de correctif à appliquer sur du code tiers.
 
 ### Lancement simplifié
 
@@ -92,9 +93,14 @@ Testé une première fois puis désinstallé après validation.
   détecte que `requirements.txt` est déjà là, il n'essaie pas de retélécharger
   le code. `launch.py` prévient juste qu'une nouvelle version existe
   (`update_check`), sans expliquer quoi faire ensuite.
-- [ ] Automatiser `VERSION` plutôt que de l'incrémenter à la main — sur le
-  modèle d'arcadepipe (`VERSION = "2." + nombre de commits`). À adapter ici
-  : `install.ps1` ne dépend pas de Git côté utilisateur, mais le calcul se
-  ferait côté mainteneur (qui a Git), via un hook Git local ou une étape
-  GitHub Actions au push, pour produire un fichier `VERSION` déjà à jour —
-  jamais calculé par l'utilisateur final.
+- [x] `VERSION` automatisé (2026-09-23) : job `bump-version` dans
+  `.github/workflows/tests.yml`, format `MAJOR.commits` (`1.19`
+  actuellement) sur le modèle d'arcadepipe — `MAJOR` fixé à la main dans le
+  workflow (vraie release), le nombre de commits (`git rev-list --count HEAD`)
+  recalculé automatiquement à chaque push. Se déclenche après les tests,
+  sur push vers `main` seulement, commit le résultat avec `[skip ci]` pour
+  ne pas se redéclencher. Le calcul reste côté CI (qui a Git) — `install.ps1`
+  ne dépend toujours pas de Git côté utilisateur. Vérifié localement (YAML
+  valide, `verifier_version()` testé avec le nouveau format) ; pas encore
+  confirmé sur un vrai push (le commit automatique en particulier —
+  permissions d'écriture du `GITHUB_TOKEN`, fetch-depth complet).
