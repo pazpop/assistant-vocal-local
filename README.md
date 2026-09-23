@@ -570,7 +570,7 @@ python main.py --debug-audio
   Whisper + Qwen2.5.
 - **Licence de Piper** : `OHF-Voice/piper1-gpl` est publié en **GPL-3.0**.
   Piper reste une dépendance installée via `pip`, jamais redistribuée ici,
-  donc ce projet reste MIT (voir [LICENSE](LICENSE)) — vérifie les
+  donc ce projet reste sous Apache 2.0 (voir [LICENSE](LICENSE)) — vérifie les
   implications de la GPL-3.0 avant toute redistribution plus large.
 - **Chemins de modèles** : `config.py` calcule les chemins vers `models/`
   relativement à sa propre position sur le disque, donc ça fonctionne quel
@@ -667,6 +667,6 @@ Silero déjà embarqué dans `faster-whisper`.
 
 ## 📄 Licence
 
-Ce projet est sous licence MIT — voir [LICENSE](LICENSE). Les dépendances
+Ce projet est sous licence Apache 2.0 — voir [LICENSE](LICENSE). Les dépendances
 tierces (Piper, faster-whisper, Ollama...) conservent leurs propres licences
 respectives.
