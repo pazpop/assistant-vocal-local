@@ -20,7 +20,6 @@ import yaml
 # models/ et config.yml fonctionnent quel que soit le dossier depuis lequel
 # tu lances main.py.
 BASE_DIR = Path(__file__).resolve().parent.parent
-MODELS_DIR = BASE_DIR / "models"
 
 _CONFIG_PATH = BASE_DIR / "config.yml"
 _EXEMPLE_PATH = BASE_DIR / "config.yml.example"

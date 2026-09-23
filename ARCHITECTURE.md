@@ -138,6 +138,20 @@ Deux cas distincts, avec un message différent au démarrage :
 cœur (bibliothèque standard uniquement, aucun mode d'échec), toujours
 actives.
 
+**Au démarrage** : `launch.py` imprime `==== Core ====` (Ollama, version,
+lancement de Jarvis et d'Open WebUI). `main.py` imprime `==== Modules ====`
+juste avant ses propres lignes de statut (domotique/météo/alertes/
+dashboard, avec plus de détail que juste actif/inactif — ex: la ville pour
+la météo), puis rappelle l'état d'Open WebUI et de la vérification de
+version ("géré par launch.py", puisque `main.py` ne les démarre pas).
+
+Deux blocs séparés plutôt qu'un seul : `launch.py` et `main.py` sont deux
+process qui écrivent dans la même console sans se synchroniser, et capturer
+la sortie de Jarvis pour la réordonner casserait le streaming caractère par
+caractère de ses réponses en conversation (`parler_en_flux`, flush à chaque
+fragment). Le regroupement suit donc ce que chaque process contrôle
+réellement, pas un ordre chronologique strict.
+
 ## Installation
 
 `install.ps1` (racine du dépôt, PowerShell — pas Python, volontairement :
@@ -148,12 +162,9 @@ n'est pas déjà lancé depuis une copie locale.
 
 **`install.bat`** (racine du dépôt) : les fichiers `.ps1` ne sont jamais
 exécutables au double-clic sous Windows (sécurité — Windows demande "avec
-quoi l'ouvrir"), contrairement aux `.bat`. Ce fichier ne fait qu'appeler
-`powershell -ExecutionPolicy Bypass -File install.ps1` puis `pause` (pour
-garder la fenêtre ouverte et voir le message final) — pour que quelqu'un
-qui a déjà le dépôt sur son disque puisse double-cliquer sans rien taper.
-Testé (via `cmd /c` depuis un autre répertoire, pour valider que
-`%~dp0` résout bien le chemin du script indépendamment du dossier courant).
+quoi l'ouvrir"), contrairement aux `.bat`. Appelle
+`powershell -ExecutionPolicy Bypass -File install.ps1` puis `pause` (garde
+la fenêtre ouverte), pour double-cliquer sans rien taper.
 
 Étapes, dans l'ordre :
 
@@ -168,13 +179,10 @@ Testé (via `cmd /c` depuis un autre répertoire, pour valider que
    Windows Store même quand Python n'est pas réellement installé). Si
    absent, **demande confirmation avant d'installer** — jamais silencieux,
    l'utilisateur garde le contrôle sur ce qui s'installe sur sa machine.
-   **ffmpeg** (`Gyan.FFmpeg`) suit le même principe — pas requis par
-   Jarvis lui-même (`faster-whisper`/Piper n'en ont pas besoin), seulement
-   par les fonctions audio propres à Open WebUI (bouton micro, upload de
-   fichiers audio dans son interface, via `pydub` — sans ffmpeg, avertissement
-   au démarrage d'Open WebUI, ces fonctions ne marchent pas). Proposé même
-   si Open WebUI n'est pas encore installé (il l'est séparément, voir
-   [Open WebUI](#open-webui) plus bas) : l'installer ne fait jamais de mal.
+   **ffmpeg** (`Gyan.FFmpeg`) suit le même principe — pas requis par Jarvis,
+   seulement par les fonctions audio d'Open WebUI (`pydub`, voir
+   [Open WebUI](#open-webui)). Proposé même sans Open WebUI installé : ça
+   ne fait jamais de mal.
 4. Récupère le dépôt si besoin (détecté par la présence de
    `requirements.txt` à côté du script).
 5. Une confirmation groupée pour le reste (venv, `pip install`, modèle
@@ -186,32 +194,25 @@ Testé (via `cmd /c` depuis un autre répertoire, pour valider que
 
 Rafraîchit le `PATH` de la session après chaque install winget (sinon la
 commande fraîchement installée reste invisible tant que PowerShell n'est
-pas relancé). Ce rafraîchissement ne vaut que pour la session d'`install.ps1`
-elle-même — un terminal déjà ouvert avant l'installation (ex: celui d'où
-`launch.py` est lancé juste après) ne le voit pas tant qu'il n'est pas
-rouvert. `launch.py` fait le même rafraîchissement de son côté (`winreg`,
-voir plus bas), donc ce problème ne se pose plus une fois Jarvis démarré
-via `launch.py`.
+pas relancé). Ne vaut que pour la session d'`install.ps1` elle-même — un
+terminal déjà ouvert (ex: celui d'où `launch.py` est lancé juste après) ne
+le voit pas tant qu'il n'est pas rouvert. `launch.py` fait le même
+rafraîchissement de son côté (voir plus bas), donc ça ne se reproduit plus
+une fois Jarvis démarré via `launch.py`.
 
-La vérification qu'Ollama répond avant de tirer le modèle
-utilise une connexion TCP brute (`System.Net.Sockets.TcpClient`), pas
-`Invoke-WebRequest` : ce dernier s'est révélé capable de rester bloqué sans
-lever d'exception dans certaines conditions (observé en testant le script
-via un sous-process avec entrée standard redirigée) — la vérification TCP
-est plus légère et n'a pas ce problème.
+La vérification qu'Ollama répond avant de tirer le modèle utilise une
+connexion TCP brute (`System.Net.Sockets.TcpClient`), pas
+`Invoke-WebRequest` : plus légère, et sans le risque de rester bloquée sans
+lever d'exception que ce dernier a montré dans certaines conditions.
 
 **La fenêtre reste ouverte, succès ou erreur.** Lancé via clic droit >
 "Exécuter avec PowerShell" (ou `install.bat`), la fenêtre se ferme *seule*
-dès que le script se termine — sans rien pour la retenir, impossible de
-lire le dernier message (la commande pour lancer Jarvis, ou l'erreur qui
-explique l'arrêt). Tout le corps du script est dans un `try/catch` global
-qui appelle `Quitter` (un `Read-Host` puis `exit`) dans les deux cas.
-Piège trouvé en implémentant ça : avec `$ErrorActionPreference = "Stop"`
-(en tête du script), `Write-Error` devient une erreur *bloquante* — tout
-code placé juste après (`exit 1` compris) ne s'exécutait donc jamais, le
-script plantait avec une trace technique brute au lieu du message propre
-et de la pause. Corrigé en remplaçant `Write-Error` par `throw`, capté par
-le `try/catch` englobant.
+dès que le script se termine — impossible de lire le dernier message sinon
+(commande pour lancer Jarvis, ou erreur). Tout le corps du script est dans
+un `try/catch` global qui appelle `Quitter` (`Read-Host` puis `exit`) dans
+les deux cas — les erreurs utilisent `throw`, jamais `Write-Error`
+(incompatible avec `$ErrorActionPreference = "Stop"` en tête du script,
+qui le rendrait bloquant avant d'atteindre la pause).
 
 ## Vérification de version
 
@@ -283,18 +284,15 @@ Windows (`subprocess.CREATE_NEW_CONSOLE`) plutôt que de mélanger ses logs
 Jarvis dans la même fenêtre. Jarvis reste dans la fenêtre principale, celle
 où `launch.py` a été lancé.
 
-**`RuntimeWarning: Couldn't find ffmpeg or avconv`** (visible dans les logs
-d'Open WebUI, pas ceux de Jarvis) : `pydub`, utilisé par les fonctions
-audio propres à Open WebUI (bouton micro, upload de fichiers audio dans
-son interface — sans rapport avec le pipeline vocal de Jarvis), a besoin du
-binaire externe **ffmpeg**, proposé comme paquet optionnel dans
-`install.ps1` (`Gyan.FFmpeg`, voir [Installation](#installation)). Si
-l'avertissement persiste après l'avoir installé : `launch.py` relit le
-`PATH` depuis le registre à chaque démarrage (`rafraichir_path()`, fonction
-`winreg`) pour couvrir le cas classique où le terminal a été ouvert avant
-l'installation de ffmpeg — mais un `open-webui serve` lancé à la main,
-sans passer par `launch.py`, resterait bloqué par le même piège de `PATH`
-tant que ce terminal-là n'est pas rouvert.
+**`RuntimeWarning: Couldn't find ffmpeg or avconv`** (dans les logs d'Open
+WebUI, pas ceux de Jarvis) : `pydub`, utilisé par les fonctions audio
+propres à Open WebUI (bouton micro, upload de fichiers — sans rapport avec
+le pipeline vocal de Jarvis), a besoin du binaire externe **ffmpeg**,
+proposé dans `install.ps1` (`Gyan.FFmpeg`, voir [Installation](#installation)).
+`launch.py` relit le `PATH` depuis le registre à chaque démarrage pour
+couvrir le cas où le terminal a été ouvert avant l'installation de ffmpeg —
+un `open-webui serve` lancé à la main, hors `launch.py`, n'en bénéficie
+pas.
 
 **Installation** (une fois, dans son propre venv — jamais dans
 `server/.venv`) :

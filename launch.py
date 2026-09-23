@@ -294,6 +294,8 @@ def main() -> None:
             "Ollama ne répond pas sur http://localhost:11434. "
             "Installe/démarre Ollama (voir README.md) avant de relancer ce script."
         )
+
+    print("==== Core ====")
     print("✅ Ollama détecté.")
 
     webui_actif, webui_host, webui_port, webui_api_key, verif_version = lire_config()

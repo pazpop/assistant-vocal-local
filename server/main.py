@@ -214,6 +214,7 @@ def main() -> None:
     tts = TextToSpeech()
     vad = VoiceActivityDetector()
 
+    print("==== Modules ====")
     ha_client: HomeAssistantClient | None = None
     if config.HA_ENABLED:
         try:
@@ -288,6 +289,15 @@ def main() -> None:
     tool_call_audios = {
         phrase: tts.synthesize(phrase) for phrase in config.LLM_TOOL_CALL_PHRASES
     }
+
+    # Domotique/météo/alertes/dashboard sont déjà annoncés individuellement
+    # ci-dessus (avec plus de détail, ex: la ville pour la météo) — pas la
+    # peine de les répéter. Open WebUI et la vérification de version n'ont
+    # en revanche encore jamais été mentionnés ici : main.py ne les démarre
+    # pas lui-même (c'est le rôle de launch.py), mais afficher leur état
+    # évite de laisser croire qu'ils sont oubliés.
+    print(f"{'✅' if config.OPEN_WEBUI_ENABLED else '⏸️ '} Open WebUI (géré par launch.py)")
+    print(f"{'✅' if config.UPDATE_CHECK_ENABLED else '⏸️ '} Vérification de version (gérée par launch.py)\n")
 
     print(f"Assistant prêt. Dis '{config.WAKE_WORD_DISPLAY_NAME}' pour commencer.")
     print(

@@ -102,7 +102,7 @@ alerts:
   # https://www.canada.ca/en/environment-climate-change/services/weather-general-tools-resources/weatheroffice-online-services/atom-feeds.html
   # Privilégie l'URL se terminant par "_f.xml" (français) plutôt que "_e.xml"
   # (anglais). Sans effet si "enabled" ci-dessus est resté à false.
-  feed_url: ""
+  feed_url: "https://weather.gc.ca/rss/battleboard/qcrm2_f.xml"
   # Intervalle (en minutes) entre deux vérifications automatiques en
   # arrière-plan, pour que Jarvis t'avertisse spontanément d'une nouvelle
   # alerte sans que tu aies à demander. Mets 0 pour ne garder que la
@@ -182,6 +182,6 @@ update_check:
   # launch.py compare le fichier VERSION local à celui du dépôt GitHub au
   # démarrage (requête réseau courte, silencieuse en cas d'échec) et
   # affiche juste un avertissement si une version plus récente existe — ne
-  # met jamais rien à jour automatiquement. Passe à false pour désactiver
-  # complètement cet appel réseau (le seul que launch.py fait lui-même).
-  enabled: true
+  # met jamais rien à jour automatiquement. C'est le seul appel réseau que
+  # launch.py fait lui-même.
+  enabled: false

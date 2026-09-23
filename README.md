@@ -25,7 +25,8 @@ amélioration.
 Mot-clé "Hey Jarvis" · conversation continue · transcription GPU
 (faster-whisper) · LLM local (Ollama) · synthèse vocale (Piper) · domotique
 (Home Assistant) · météo + alertes météo (Open-Meteo, Environnement Canada)
-· minuteurs · date/heure · panneau de ressources local.
+· minuteurs · date/heure · panneau de ressources local · interface web de
+conversation façon ChatGPT (Open WebUI, optionnelle).
 
 Chaque module optionnel s'active/désactive avec `enabled: true/false` dans
 `config.yml` (voir [`config.yml.example`](config.yml.example)). Détails de

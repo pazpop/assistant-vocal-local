@@ -17,15 +17,14 @@ from faster_whisper.utils import get_assets_path
 
 class VoiceActivityDetector:
     """VAD Silero en flux : une probabilité de parole par bloc de
-    NUM_SAMPLES échantillons, à SAMPLE_RATE Hz, en maintenant l'état interne
-    (récurrent) du modèle d'un bloc à l'autre.
+    NUM_SAMPLES échantillons, à 16 kHz (config.SAMPLE_RATE), en maintenant
+    l'état interne (récurrent) du modèle d'un bloc à l'autre.
 
     Le modèle est entraîné pour des blocs de 512 échantillons à 16 kHz (32 ms) —
     ces constantes ne sont pas de simples préférences, elles doivent
     correspondre exactement à ce que le modèle attend.
     """
 
-    SAMPLE_RATE = 16000
     NUM_SAMPLES = 512
     CONTEXT_SAMPLES = 64
 
@@ -50,7 +49,7 @@ class VoiceActivityDetector:
 
     def probabilite_parole(self, bloc: np.ndarray) -> float:
         """Probabilité (0-1) que ce bloc de NUM_SAMPLES échantillons (float32
-        mono, SAMPLE_RATE Hz) contienne de la parole."""
+        mono, 16 kHz) contienne de la parole."""
         if bloc.shape[0] != self.NUM_SAMPLES:
             raise ValueError(
                 f"Bloc de {self.NUM_SAMPLES} échantillons attendu, reçu {bloc.shape[0]}."

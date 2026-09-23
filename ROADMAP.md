@@ -143,3 +143,20 @@ conteneurs Docker + un client audio hôte. Écartée après analyse :
 - **2026-09-23** — Documentation réorganisée : README raccourci, détail
   technique dans `ARCHITECTURE.md`, suivi des fonctionnalités dans ce
   fichier.
+- **2026-09-23** — `main.py` affiche aussi l'état d'Open WebUI et de la
+  vérification de version, juste avant "Assistant prêt" (étiquetés "géré
+  par launch.py" — `main.py` ne les démarre pas, simple rappel de
+  `config.yml`). Domotique/météo/alertes/dashboard restent uniquement
+  annoncés individuellement pendant le chargement, comme avant. Une
+  première version ajoutait un résumé complet des 6 modules en plus de ces
+  messages individuels — doublon visible à l'écran, signalé et corrigé.
+  Testé (plus de doublon).
+- **2026-09-23** — `alerts.feed_url` par défaut rempli avec le flux de
+  Montréal (`qcrm2_f.xml`, français), cohérent avec `location` par défaut.
+- **2026-09-23** — Log de démarrage regroupé en deux sections : `launch.py`
+  imprime `==== Core ====` (Ollama, vérification de version, Jarvis/Open
+  WebUI lancés), `main.py` imprime `==== Modules ====` pour ses propres
+  lignes de statut. Pas de fusion chronologique unique entre les deux
+  process (capturer la sortie de Jarvis casserait le streaming
+  caractère par caractère de ses réponses) — testé, les deux sections
+  s'affichent correctement chacune de leur côté.
