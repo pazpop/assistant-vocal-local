@@ -11,11 +11,19 @@ import argparse
 import queue
 import random
 import re
+import sys
 import threading
 import time
 from typing import Callable
 
 import numpy as np
+
+# Robuste face aux emojis (✅/⚠️/⏸️) et accents même quand la console ne
+# détecte pas UTF-8 (ex: cp1252, typiquement quand ce script est lancé comme
+# sous-process par launch.py plutôt que directement dans un terminal
+# interactif) — sans ça, le premier print() avec emoji fait planter Jarvis.
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
 
 import config
 import dashboard

@@ -33,30 +33,49 @@ fonctionnement de chaque module : [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 🚀 Installation (Windows 11)
 
-Prérequis : Python 3.11, GPU NVIDIA (CUDA) recommandé, un micro,
-[Ollama](https://ollama.com).
+Prérequis : rien — ouvre PowerShell et lance :
 
 ```powershell
-winget install --id Git.Git -e
-winget install Python.Python.3.11
-irm https://ollama.com/install.ps1 | iex
-ollama pull qwen2.5:7b
+irm https://raw.githubusercontent.com/pazpop/assistant-vocal-local/main/install.ps1 | iex
 ```
 
+Installe Python et Ollama si besoin (**confirmation demandée pour chacun**,
+rien ne s'installe à ton insu), récupère le dépôt, crée le venv, installe
+les dépendances, télécharge le modèle Ollama (`qwen2.5:7b`, ~4,7 Go) et la
+voix Piper. Ne lance rien à la fin — il affiche la commande pour démarrer
+Jarvis toi-même. Détail du script : [ARCHITECTURE.md](ARCHITECTURE.md#installation).
+
 ```powershell
+cd assistant-vocal-local
+.\.venv\Scripts\python.exe launch.py
+```
+
+Dis **"Hey Jarvis"** pour commencer. `launch.py` démarre Jarvis (et Open WebUI
+si activé dans `config.yml` — voir [ARCHITECTURE.md](ARCHITECTURE.md#open-webui)) ;
+Ctrl+C arrête tout proprement.
+
+**Dépôt déjà sur ton disque ?** Double-clique sur `install.bat` (les `.ps1`
+ne sont jamais exécutables au double-clic sous Windows). En secours : clic
+droit sur `install.ps1` → **Exécuter avec PowerShell**.
+
+**Étapes manuelles**, si tu préfères tout faire toi-même :
+
+```powershell
+winget install Python.Python.3.11
+winget install --id Ollama.Ollama -e
+winget install --id Git.Git -e
 git clone https://github.com/pazpop/assistant-vocal-local.git
 cd assistant-vocal-local
 python -m venv .venv
-.venv\Scripts\activate
+.\.venv\Scripts\activate
 pip install -r requirements.txt
 Copy-Item config.yml.example config.yml   # adapte au moins ta ville sous location:
+ollama pull qwen2.5:7b
 cd models\piper
 python -m piper.download_voices fr_FR-tom-medium
-cd ..\..\server
-python main.py
+cd ..\..
+python launch.py
 ```
-
-Dis **"Hey Jarvis"** pour commencer.
 
 Pas de GPU NVIDIA, voix féminine, configuration de Home Assistant, dépannage
 GPU : voir [ARCHITECTURE.md](ARCHITECTURE.md#installation-avancée) et

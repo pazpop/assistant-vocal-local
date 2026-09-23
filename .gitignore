@@ -1,9 +1,16 @@
 # Environnements Python
 venv/
 .venv/
+openwebui/.venv-openwebui/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Open WebUI : secret de session généré au premier lancement (pas un
+# réglage à committer, régénérable sans conséquence), et sa base de données
+# (comptes, historique de chat — données personnelles, pas du code).
+openwebui/.webui_secret_key
+openwebui/data/
 
 # Configuration personnelle (réglages + secrets, ex: jeton Home Assistant) :
 # jamais commitée. Seul config.yml.example (le modèle) est versionné.

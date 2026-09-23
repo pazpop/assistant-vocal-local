@@ -145,9 +145,10 @@ LLM_SYSTEM_PROMPT_TEMPLATE = (
 )
 
 # --- Météo (Open-Meteo) ---
-# Défaut à True : la météo a toujours été activée par défaut (contrairement
-# à la domotique/aux alertes, qui exigent un secret ou une URL à fournir).
-WEATHER_ENABLED = _get("weather.enabled", True)
+# Règle uniforme pour tous les modules optionnels de ce fichier : absent de
+# config.yml = désactivé. Il faut un "enabled: true" explicite pour
+# activer, jamais une déduction à partir d'un autre réglage.
+WEATHER_ENABLED = _get("weather.enabled", False)
 
 # --- Localisation (partagée par la météo ET la date/heure, pour rester
 # cohérentes : les deux doivent parler de la même région) ---
@@ -160,17 +161,15 @@ HA_BASE_URL = _get("home_assistant.base_url", "")
 HA_VERIFY_SSL = _get("home_assistant.verify_ssl", True)
 HA_TOKEN = _get("home_assistant.token", "") or ""
 HA_DEVICE_ALIASES: dict[str, str] = _get("home_assistant.device_aliases", {}) or {}
-# Défaut déduit de la présence d'un token (comportement historique, avant
-# l'ajout de cette clé) si "enabled" est absent de config.yml — une
-# installation existante qui a déjà rempli son token continue de fonctionner
-# sans y toucher. Une valeur explicite de "enabled" prend toujours le dessus.
-HA_ENABLED = _get("home_assistant.enabled", bool(HA_TOKEN))
+# Absent de config.yml = désactivé, même si "token" est rempli — voir
+# WEATHER_ENABLED ci-dessus pour la règle uniforme.
+HA_ENABLED = _get("home_assistant.enabled", False)
 
 # --- Alertes météo publiques (Environnement Canada, flux Atom gratuit) ---
 ALERTS_FEED_URL = _get("alerts.feed_url", "") or ""
-# Même logique de défaut déduit que HA_ENABLED ci-dessus, à partir de
-# feed_url plutôt que du token.
-ALERTS_ENABLED = _get("alerts.enabled", bool(ALERTS_FEED_URL))
+# Absent de config.yml = désactivé, même si "feed_url" est rempli — voir
+# WEATHER_ENABLED ci-dessus pour la règle uniforme.
+ALERTS_ENABLED = _get("alerts.enabled", False)
 # Intervalle entre deux sondages en arrière-plan (minutes). 0 = pas de
 # sondage automatique, seulement à la demande.
 ALERTS_CHECK_INTERVAL_MINUTES = _get("alerts.check_interval_minutes", 15)
@@ -185,8 +184,17 @@ ALERTS_QUIET_HOURS_START = _get("alerts.quiet_hours_start", "22:00")
 ALERTS_QUIET_HOURS_END = _get("alerts.quiet_hours_end", "08:00")
 
 # --- Panneau de ressources local (dashboard.py) ---
-DASHBOARD_ENABLED = _get("dashboard.enabled", True)
+DASHBOARD_ENABLED = _get("dashboard.enabled", False)
 DASHBOARD_PORT = _get("dashboard.port", 8790)
+
+# --- Open WebUI (lancé optionnellement par launch.py, dans son propre venv
+# séparé — voir ARCHITECTURE.md) ---
+OPEN_WEBUI_ENABLED = _get("open_webui.enabled", False)
+OPEN_WEBUI_HOST = _get("open_webui.host", "127.0.0.1")
+OPEN_WEBUI_PORT = _get("open_webui.port", 3000)
+# Clé API (Réglages > Compte > Clés API dans Open WebUI), uniquement pour
+# `launch.py --purge-webui-memory` — sans effet sur le fonctionnement normal.
+OPEN_WEBUI_API_KEY = _get("open_webui.api_key", "") or ""
 
 # --- TTS (Piper — OHF-Voice/piper1-gpl, GPL-3.0 depuis la migration oct. 2025) ---
 TTS_VOICE_MODEL = str(BASE_DIR / _get("tts.voice_model", "models/piper/fr_FR-tom-medium.onnx"))
@@ -194,3 +202,6 @@ TTS_USE_CUDA = _get("tts.use_cuda", False)
 # Uniquement pour une voix multi-locuteurs (ex: mls) : lequel des locuteurs
 # utiliser. Sans effet sur une voix mono-locuteur (siwis, tom...).
 TTS_SPEAKER_ID = _get("tts.speaker_id", None)
+
+# --- Vérification de version (lancée uniquement par launch.py) ---
+UPDATE_CHECK_ENABLED = _get("update_check.enabled", False)

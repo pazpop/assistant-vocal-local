@@ -61,11 +61,18 @@ llm:
   # Modèle Ollama à utiliser (doit être déjà récupéré via `ollama pull`).
   model: qwen2.5:7b
 
-weather:
-  # Désactive complètement la météo (obtenir_meteo) si tu ne veux pas de
-  # cette fonctionnalité. Indépendant de la date/heure (date_time.py), qui ne
-  # partage que la localisation ci-dessous, pas ce commutateur.
-  enabled: true
+tts:
+  # Chemin vers la voix Piper, relatif à la racine du projet. "tom" est une
+  # voix masculine (medium) ; "siwis" (voix féminine) est une alternative
+  # très bien notée si tu préfères repasser dessus.
+  voice_model: "models/piper/fr_FR-tom-medium.onnx"
+  # True + `pip install onnxruntime-gpu` pour accélérer sur GPU (Piper est
+  # déjà rapide sur CPU, donc pas nécessaire dans la plupart des cas).
+  use_cuda: false
+  # Uniquement pour une voix multi-locuteurs (ex: "mls", 125 voix au choix,
+  # 0 à 124) : sans effet ici, "tom" étant mono-locuteur. Laisse cette ligne
+  # absente sauf si tu repasses à une voix multi-locuteurs.
+  # speaker_id: 0
 
 location:
   # Nom utilisé dans les réponses parlées (météo, date/heure).
@@ -79,6 +86,12 @@ location:
   # Liste des identifiants valides :
   # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
   timezone: "America/Toronto"
+
+weather:
+  # Désactive complètement la météo (obtenir_meteo) si tu ne veux pas de
+  # cette fonctionnalité. Indépendant de la date/heure (date_time.py), qui ne
+  # partage que la localisation ci-dessus, pas ce commutateur.
+  enabled: false
 
 alerts:
   # Désactive complètement les alertes météo. Mets aussi "feed_url"
@@ -132,21 +145,43 @@ home_assistant:
 dashboard:
   # Passe à false pour désactiver complètement le panneau (aucun serveur
   # HTTP lancé) si tu ne t'en sers pas.
-  enabled: true
+  enabled: false
   # Port du panneau de ressources local (CPU/RAM/VRAM/latences du pipeline),
   # accessible uniquement en local à http://127.0.0.1:<port>/ — l'URL exacte
   # s'affiche aussi au démarrage de l'assistant.
   port: 8790
 
-tts:
-  # Chemin vers la voix Piper, relatif à la racine du projet. "tom" est une
-  # voix masculine (medium) ; "siwis" (voix féminine) est une alternative
-  # très bien notée si tu préfères repasser dessus.
-  voice_model: "models/piper/fr_FR-tom-medium.onnx"
-  # True + `pip install onnxruntime-gpu` pour accélérer sur GPU (Piper est
-  # déjà rapide sur CPU, donc pas nécessaire dans la plupart des cas).
-  use_cuda: false
-  # Uniquement pour une voix multi-locuteurs (ex: "mls", 125 voix au choix,
-  # 0 à 124) : sans effet ici, "tom" étant mono-locuteur. Laisse cette ligne
-  # absente sauf si tu repasses à une voix multi-locuteurs.
-  # speaker_id: 0
+open_webui:
+  # Active/désactive le lancement d'Open WebUI (interface web de
+  # conversation par-dessus Ollama) par launch.py. Nécessite de l'avoir
+  # installé au préalable dans son propre venv (openwebui/.venv-openwebui) —
+  # voir ARCHITECTURE.md. Sans effet si tu lances Jarvis directement via
+  # `python server/main.py` plutôt que `python launch.py`.
+  enabled: false
+  # Adresse d'écoute. "127.0.0.1" = uniquement cette machine (par défaut,
+  # cohérent avec le panneau de ressources). Mets "0.0.0.0" pour y accéder
+  # depuis un autre appareil de ton réseau (ex: téléphone) — le défaut
+  # d'Open WebUI lui-même est "0.0.0.0", volontairement resserré ici.
+  host: "127.0.0.1"
+  # Port d'écoute d'Open WebUI (http://<host>:<port>).
+  port: 3000
+  # Clé API Open WebUI (Réglages > Compte > Clés API), nécessaire uniquement
+  # pour `python launch.py --purge-webui-memory`. Active d'abord "Autoriser
+  # les clés API" dans Panneau d'administration > Réglages > Général. Vide =
+  # fonctionnalité indisponible (message clair si tu tentes de l'utiliser).
+  api_key: ""
+  # Purger les données d'Open WebUI (reset complet, ou juste la fonction
+  # Memory) n'est volontairement PAS un réglage ici : un interrupteur qui
+  # efface tout silencieusement à chaque démarrage est le genre de chose
+  # qu'on oublie d'avoir activé. C'est une option de lancement à taper
+  # explicitement à chaque fois — voir `python launch.py --help`
+  # (--purge-webui-on-start / --purge-webui-memory-on-start) et
+  # ARCHITECTURE.md.
+
+update_check:
+  # launch.py compare le fichier VERSION local à celui du dépôt GitHub au
+  # démarrage (requête réseau courte, silencieuse en cas d'échec) et
+  # affiche juste un avertissement si une version plus récente existe — ne
+  # met jamais rien à jour automatiquement. Passe à false pour désactiver
+  # complètement cet appel réseau (le seul que launch.py fait lui-même).
+  enabled: true

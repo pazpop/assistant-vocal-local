@@ -16,17 +16,30 @@ l'existant : [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ### Interface web de conversation (Open WebUI)
 
-Actuellement déployé en Docker, connecté à Ollama natif (`host.docker.internal:11434`).
-
-- [ ] Migrer vers un venv Python dédié (`openwebui/.venv-openwebui/`) plutôt que Docker — évite d'imposer Docker Desktop pour un seul conteneur. Conflit vérifié qui empêcherait de le mettre dans le même venv que Jarvis : Open WebUI épingle `onnxruntime==1.26.0`, Jarvis épingle `onnxruntime==1.30.0` (utilisé par `openwakeword`/`vad.py`) — deux venvs séparés obligatoires.
-- [ ] Nettoyer le system prompt de `qwen2.5-coder` (contaminé par des exemples d'appels d'outils Jarvis, le modèle imite ces exemples au lieu de coder) — créer un modèle personnalisé dans Open WebUI (**Espace de travail > Modèles**) avec son propre system prompt, plutôt que de modifier la config globale ou la base SQLite directement.
+- [x] Migré vers un venv Python dédié (`openwebui/.venv-openwebui/`, 2026-09-23) plutôt que Docker — évite d'imposer Docker Desktop pour un seul conteneur. Conflit vérifié qui empêche de le mettre dans le même venv que Jarvis : Open WebUI épingle `onnxruntime==1.26.0`, Jarvis épingle `onnxruntime==1.30.0` (utilisé par `openwakeword`/`vad.py`).
+- [x] Base de données (comptes, historique de chat) redirigée hors du venv via `DATA_DIR` (par défaut, Open WebUI l'écrit dans `site-packages/`, perdue si le venv est recréé).
+- [ ] Nettoyer le system prompt de `qwen2.5-coder` (contaminé par des exemples d'appels d'outils Jarvis, le modèle imite ces exemples au lieu de coder) — créer un modèle personnalisé dans Open WebUI (**Espace de travail > Modèles**) avec son propre system prompt, plutôt que de modifier la config globale ou la base SQLite directement. Reste à faire manuellement dans l'interface, aucune automatisation possible côté dépôt.
 
 ### Lancement simplifié
 
 Objectif : rendre le démarrage accessible à quelqu'un qui n'est pas développeur, avec les modules optionnels faciles à activer/désactiver.
 
-- [ ] `launch.py` à la racine (stdlib uniquement) : vérifie qu'Ollama répond, lance Jarvis (`server/.venv`), lance Open WebUI en option (`openwebui/.venv-openwebui`) — arrêt propre de tous les sous-process sur Ctrl+C.
-- [ ] Décider le mécanisme de toggle pour Open WebUI : clé `open_webui.enabled` dans `config.yml` (cohérent avec les autres modules) ou flag CLI (`--with-webui`) — arbitrage en attente.
+- [x] `launch.py` à la racine (stdlib uniquement, 2026-09-23) : vérifie qu'Ollama répond, lance Jarvis (`.venv` à la racine), lance Open WebUI en option (`openwebui/.venv-openwebui`) — arrêt propre de tous les sous-process sur Ctrl+C. Testé de bout en bout (Ollama détecté, Jarvis démarré et resté stable, Open WebUI correctement ignoré/lancé selon `open_webui.enabled`).
+- [x] Toggle Open WebUI : clé `open_webui.enabled` (+ `host`/`port`) dans `config.yml`, cohérent avec les autres modules.
+- [x] CORS restreint (2026-09-23) : Open WebUI avertit au démarrage que `CORS_ALLOW_ORIGIN=*` accepte les requêtes de n'importe quel site — `launch.py` le restreint à sa propre origine quand `open_webui.host` vaut `127.0.0.1` (le défaut). Testé : l'avertissement disparaît.
+- [x] ffmpeg (2026-09-23) : ajouté comme troisième paquet confirmé dans `install.ps1` (même principe que Python/Ollama) — pas requis par Jarvis, seulement par les fonctions audio propres à Open WebUI (`pydub`, avertissement `RuntimeWarning` sinon). Testé : installation réelle via winget confirmée, détecté correctement au relancement.
+- **Bug trouvé et corrigé en testant** : `main.py` et `launch.py` plantaient (`UnicodeEncodeError`) sur les emojis (✅/⚠️/⏸️) dès qu'ils tournent dans une console qui ne détecte pas l'UTF-8 (ex: cp1252) — typiquement quand `main.py` est lancé comme sous-process par `launch.py` plutôt que directement dans un terminal interactif. Corrigé par un `sys.stdout.reconfigure(encoding="utf-8")` dans les deux fichiers.
+- [x] `python launch.py --purge-webui` (reset complet, testé) et `--purge-webui-memory` (fonction Memory uniquement, via l'API officielle `DELETE /api/v1/memories/delete/user` — vérifiée dans le code source d'Open WebUI installé, pas une supposition). Les deux avec confirmation (`--yes` pour l'ignorer).
+- [x] Purge combinée au démarrage via `--purge-webui-on-start`/`--purge-webui-memory-on-start` — testée (marqueur factice supprimé, base recréée, stack démarrée normalement ensuite). Volontairement des options de lancement, pas des clés dans `config.yml` (envisagé un temps, puis écarté : un interrupteur qui purge silencieusement à chaque démarrage est le genre de réglage qu'on oublie d'avoir activé).
+- [x] `install.ps1` (2026-09-23) : installe Python/Ollama via winget (confirmation individuelle pour chacun), récupère le dépôt en `.zip` (pas besoin de Git), crée le venv, installe les dépendances, tire le modèle LLM et la voix Piper — puis affiche la commande pour lancer Jarvis, sans le faire lui-même. Testé de bout en bout sur une machine où tout était déjà installé (détection correcte, aucune install redéclenchée). Bug trouvé en testant : `Invoke-WebRequest` pouvait rester bloqué sans lever d'exception lors de la vérification qu'Ollama répond — remplacé par une connexion TCP brute (`TcpClient`), plus fiable.
+- [x] Détection GPU (2026-09-23) : NVIDIA/AMD/aucun, message clair au tout début du script (`Get-CimInstance Win32_VideoController`), purement informatif. Testé (RTX 3080 correctement détectée).
+- [x] `install.bat` (2026-09-23) : double-clic direct (les `.ps1` ne le sont jamais sous Windows) pour qui a déjà le dépôt sur son disque — appelle `install.ps1` avec `-ExecutionPolicy Bypass`. Testé via `cmd /c` depuis un autre répertoire. Alternative sans fichier supplémentaire documentée dans le README : clic droit sur `install.ps1` → "Exécuter avec PowerShell".
+- [x] Fenêtre gardée ouverte succès/erreur (2026-09-23) : `Quitter` (pause + exit) partout, `try/catch` global. Bug trouvé en implémentant : `$ErrorActionPreference = "Stop"` rendait `Write-Error` bloquant, donc le code juste après (dont la pause) n'était jamais atteint — corrigé (`throw` + `catch` englobant). Testé : chemin succès et chemin échec affichent tous les deux le message final puis attendent une touche.
+- [ ] `install.ps1` demande la ville à l'utilisateur et ajuste `config.yml` (`location:`) directement, plutôt que de le laisser en `Montréal` par défaut avec un simple rappel à la fin.
+  - **Attention à l'international** : l'exemple actuel de `config.yml.example` utilise `geocode_query: "Montréal, QC"` (ville + province, spécifique au Canada). Ne pas demander "ville + province" comme champ générique — en France par exemple, il n'y a pas de province. La bonne approche est probablement de ne demander que la ville (en texte libre, avec pays optionnel si ambigu) et de laisser le géocodage Open-Meteo (déjà utilisé par `weather.geocoder()` à l'exécution) résoudre `geocode_query`/`timezone` tout seul, plutôt que de faire deviner un format administratif à l'utilisateur.
+- [x] Vérification de version (2026-09-23) : `launch.py` compare `VERSION` (racine, une date) à celui de GitHub au démarrage — un message dans les deux cas (`✅ Code à jour` ou `⚠️ Nouvelle version disponible`), jamais de mise à jour automatique (choix explicite : détecter, pas corriger). Pas basé sur Git/commits (`install.ps1` n'en dépend pas) — un simple fichier texte comparé à sa version distante, désactivable (`update_check.enabled: false`). Testé (cas à jour, en retard, et réseau indisponible — silencieux uniquement dans ce dernier cas).
+- [x] Open WebUI dans sa propre fenêtre de console (2026-09-23) : `launch.py` utilise `subprocess.CREATE_NEW_CONSOLE`, ses logs (verbeux) ne se mélangent plus avec ceux de Jarvis. Jarvis reste dans la fenêtre principale. Testé (nouvelle fenêtre confirmée à l'écran).
+- [x] `launch.py` relit le `PATH` depuis le registre à chaque démarrage (2026-09-23) : ffmpeg installé via `install.ps1` restait invisible pour Open WebUI (`RuntimeWarning: Couldn't find ffmpeg or avconv`) tant que le terminal utilisé pour lancer `launch.py` n'était pas rouvert — le même piège que celui déjà documenté pour `install.ps1` lui-même, mais qui touchait cette fois une session différente. Testé : `shutil.which('ffmpeg')` passe de `None` à un chemin valide après l'appel, et le warning disparaît réellement des logs d'Open WebUI.
 
 ### CI — compatibilité Linux
 
@@ -113,10 +126,20 @@ conteneurs Docker + un client audio hôte. Écartée après analyse :
 
 ## Fait
 
+- **2026-09-23** — `install.ps1` : installation en une commande
+  (`irm ... | iex`), sans prérequis (Python/Ollama installés via winget
+  avec confirmation individuelle, dépôt récupéré sans Git).
+- **2026-09-23** — Open WebUI migré vers un venv natif dédié (plus de
+  Docker), `launch.py` orchestre Jarvis + Open WebUI en un seul script,
+  toggle uniforme via `config.yml` (`open_webui.enabled`).
 - **2026-09-23** — Chaque module optionnel (`home_assistant`, `weather`,
-  `alerts`, `dashboard`) utilise une clé `enabled` uniforme dans
-  `config.yml`, avec rétrocompatibilité pour les installations existantes
-  (déduite de `token`/`feed_url` si la clé est absente).
+  `alerts`, `dashboard`, `open_webui`, `update_check`) utilise une clé
+  `enabled` uniforme dans `config.yml`. Règle stricte, sans exception :
+  clé absente = désactivé, jamais déduit d'un autre réglage (`token`,
+  `feed_url`...) — la rétrocompatibilité initialement construite pour
+  `home_assistant`/`alerts` (déduction depuis `token`/`feed_url` si
+  `enabled` absent) a été retirée sur demande explicite, au profit d'une
+  règle simple et identique pour tous les modules.
 - **2026-09-23** — Documentation réorganisée : README raccourci, détail
   technique dans `ARCHITECTURE.md`, suivi des fonctionnalités dans ce
   fichier.

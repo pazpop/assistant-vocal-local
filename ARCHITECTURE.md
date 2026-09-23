@@ -76,6 +76,9 @@ flowchart LR
 assistant-vocal-local/
 ├── config.yml            # Tes réglages + secrets personnels (ignoré par git)
 ├── config.yml.example    # Modèle commité, à copier en config.yml
+├── launch.py             # Lance Jarvis (+ Open WebUI en option), sans Docker
+├── openwebui/            # Open WebUI, venv séparé (voir Open WebUI ci-dessous)
+│   └── .venv-openwebui/    # Ignoré par git — pip install open-webui
 ├── server/              # Tout le code du serveur de traitement (PC)
 │   ├── main.py          # Point d'entrée : boucle principale
 │   ├── config.py        # Charge config.yml et l'expose au reste du code
@@ -109,16 +112,23 @@ assistant-vocal-local/
 ## Modules et configuration
 
 Chaque module optionnel (domotique, météo, alertes météo, panneau de
-ressources) a une clé `enabled: true/false` propre dans `config.yml` —
-`home_assistant.enabled`, `weather.enabled`, `alerts.enabled`,
-`dashboard.enabled`. Un seul contrat pour tous, plutôt que des conventions
-différentes selon le module (avant : `token`/`feed_url` vide = désactivé
-pour certains, `enabled` explicite pour d'autres).
+ressources, Open WebUI, vérification de version) a une clé
+`enabled: true/false` propre dans `config.yml` — `home_assistant.enabled`,
+`weather.enabled`, `alerts.enabled`, `dashboard.enabled`,
+`open_webui.enabled`, `update_check.enabled`.
+
+**Règle uniforme, sans exception : clé absente de `config.yml` =
+désactivé.** Il faut toujours un `enabled: true` explicite pour activer un
+module — jamais de déduction à partir d'un autre réglage (ex: un `token`
+ou `feed_url` rempli n'active plus rien tout seul). Un seul contrat pour
+tous, volontairement strict : plus simple à retenir qu'un défaut différent
+par module, au prix de devoir taper `enabled: true` même quand le reste
+(jeton, URL...) est déjà rempli.
 
 Deux cas distincts, avec un message différent au démarrage :
 
-- **`enabled: false`** : module ignoré, aucune tentative de connexion
-  (`⏸️`). C'est le comportement voulu, pas une erreur.
+- **`enabled: false`** (ou absent) : module ignoré, aucune tentative de
+  connexion (`⏸️`). C'est le comportement voulu, pas une erreur.
 - **`enabled: true` mais mal configuré** (jeton/URL manquant, service
   injoignable) : erreur de configuration explicite (`⚠️`), pour distinguer
   "je n'en veux pas" de "j'ai oublié une étape". L'assistant démarre quand
@@ -128,11 +138,113 @@ Deux cas distincts, avec un message différent au démarrage :
 cœur (bibliothèque standard uniquement, aucun mode d'échec), toujours
 actives.
 
-**Rétrocompatibilité** : si `enabled` est absent de ton `config.yml`
-(installation antérieure à cette clé), sa valeur par défaut se déduit de
-l'état existant — présence d'un `token`/`feed_url` non vide — pour ne rien
-casser d'une installation qui fonctionnait déjà (`server/config.py`,
-`HA_ENABLED`/`ALERTS_ENABLED`).
+## Installation
+
+`install.ps1` (racine du dépôt, PowerShell — pas Python, volontairement :
+au premier lancement, Python n'existe pas encore) automatise tout ce qui
+suit. Il ne dépend pas de Git : le dépôt est récupéré en `.zip`
+(`Invoke-WebRequest`/`Expand-Archive`, natifs à PowerShell) si le script
+n'est pas déjà lancé depuis une copie locale.
+
+**`install.bat`** (racine du dépôt) : les fichiers `.ps1` ne sont jamais
+exécutables au double-clic sous Windows (sécurité — Windows demande "avec
+quoi l'ouvrir"), contrairement aux `.bat`. Ce fichier ne fait qu'appeler
+`powershell -ExecutionPolicy Bypass -File install.ps1` puis `pause` (pour
+garder la fenêtre ouverte et voir le message final) — pour que quelqu'un
+qui a déjà le dépôt sur son disque puisse double-cliquer sans rien taper.
+Testé (via `cmd /c` depuis un autre répertoire, pour valider que
+`%~dp0` résout bien le chemin du script indépendamment du dossier courant).
+
+Étapes, dans l'ordre :
+
+1. Détecte le GPU (`Get-CimInstance Win32_VideoController`) et affiche
+   clairement le résultat : NVIDIA → "projet complètement compatible" ;
+   AMD ou aucun GPU dédié → "le projet va rouler en CPU, donc quelques
+   latences à prévoir" (renvoie vers "GPU AMD" ci-dessous pour ajuster
+   `config.yml`). Purement informatif : ne modifie rien automatiquement.
+2. Vérifie que `winget` est disponible.
+3. **Python 3.11** et **Ollama** : détection via `winget list --id ... -e`
+   (fiable, contrairement à `Get-Command python` qui peut trouver le stub
+   Windows Store même quand Python n'est pas réellement installé). Si
+   absent, **demande confirmation avant d'installer** — jamais silencieux,
+   l'utilisateur garde le contrôle sur ce qui s'installe sur sa machine.
+   **ffmpeg** (`Gyan.FFmpeg`) suit le même principe — pas requis par
+   Jarvis lui-même (`faster-whisper`/Piper n'en ont pas besoin), seulement
+   par les fonctions audio propres à Open WebUI (bouton micro, upload de
+   fichiers audio dans son interface, via `pydub` — sans ffmpeg, avertissement
+   au démarrage d'Open WebUI, ces fonctions ne marchent pas). Proposé même
+   si Open WebUI n'est pas encore installé (il l'est séparément, voir
+   [Open WebUI](#open-webui) plus bas) : l'installer ne fait jamais de mal.
+4. Récupère le dépôt si besoin (détecté par la présence de
+   `requirements.txt` à côté du script).
+5. Une confirmation groupée pour le reste (venv, `pip install`, modèle
+   Ollama `qwen2.5:7b` ~4,7 Go, voix Piper) — pas une par paquet Python,
+   contrairement à Python/Ollama : ce sont des dépendances du projet
+   lui-même, scopées au venv (`.venv/`), pas des installations système.
+6. **Ne lance jamais `launch.py`** : affiche la commande à taper, pour que
+   le premier lancement (qui capture le micro) reste un geste délibéré.
+
+Rafraîchit le `PATH` de la session après chaque install winget (sinon la
+commande fraîchement installée reste invisible tant que PowerShell n'est
+pas relancé). Ce rafraîchissement ne vaut que pour la session d'`install.ps1`
+elle-même — un terminal déjà ouvert avant l'installation (ex: celui d'où
+`launch.py` est lancé juste après) ne le voit pas tant qu'il n'est pas
+rouvert. `launch.py` fait le même rafraîchissement de son côté (`winreg`,
+voir plus bas), donc ce problème ne se pose plus une fois Jarvis démarré
+via `launch.py`.
+
+La vérification qu'Ollama répond avant de tirer le modèle
+utilise une connexion TCP brute (`System.Net.Sockets.TcpClient`), pas
+`Invoke-WebRequest` : ce dernier s'est révélé capable de rester bloqué sans
+lever d'exception dans certaines conditions (observé en testant le script
+via un sous-process avec entrée standard redirigée) — la vérification TCP
+est plus légère et n'a pas ce problème.
+
+**La fenêtre reste ouverte, succès ou erreur.** Lancé via clic droit >
+"Exécuter avec PowerShell" (ou `install.bat`), la fenêtre se ferme *seule*
+dès que le script se termine — sans rien pour la retenir, impossible de
+lire le dernier message (la commande pour lancer Jarvis, ou l'erreur qui
+explique l'arrêt). Tout le corps du script est dans un `try/catch` global
+qui appelle `Quitter` (un `Read-Host` puis `exit`) dans les deux cas.
+Piège trouvé en implémentant ça : avec `$ErrorActionPreference = "Stop"`
+(en tête du script), `Write-Error` devient une erreur *bloquante* — tout
+code placé juste après (`exit 1` compris) ne s'exécutait donc jamais, le
+script plantait avec une trace technique brute au lieu du message propre
+et de la pause. Corrigé en remplaçant `Write-Error` par `throw`, capté par
+le `try/catch` englobant.
+
+## Vérification de version
+
+`launch.py` compare le fichier `VERSION` (racine du dépôt, une simple date
+`AAAA-MM-JJ`) à celui du dépôt GitHub à chaque démarrage — requête réseau
+courte (3s de timeout), silencieuse en cas d'échec, jamais bloquante pour
+Jarvis. Un message s'affiche dans les deux cas (à jour ou en retard), pas
+seulement en cas de retard :
+
+```
+✅ Code à jour (version 2026-09-23).
+```
+```
+⚠️  Nouvelle version disponible sur GitHub (locale : 2026-09-20, distante : 2026-09-23) — https://github.com/pazpop/assistant-vocal-local
+```
+
+**Ne met jamais rien à jour automatiquement** — `install.ps1` ne sait pas
+mettre à jour une installation existante non plus (il ne fait rien si
+`requirements.txt` est déjà présent, voir [Installation](#installation)) :
+ce n'est donc volontairement qu'un signal, pas une action. Désactivable via
+`update_check.enabled: false` dans `config.yml` (c'est le seul appel
+réseau que `launch.py` fait lui-même, en dehors de ceux de Jarvis
+documentés ailleurs dans ce fichier).
+
+Pas basé sur Git ni sur le nombre de commits (contrairement à d'autres
+projets de l'auteur) : `install.ps1` ne dépend volontairement pas de Git,
+donc rien ne garantit qu'un `.git/` existe localement pour compter quoi
+que ce soit — un simple fichier texte comparé à sa version distante
+fonctionne quelle que soit la méthode d'installation utilisée.
+
+**Maintenance** : `VERSION` doit être incrémenté à la main à chaque
+changement notable (même discipline que les dates du "Fait" dans
+`ROADMAP.md`) — rien ne le fait automatiquement.
 
 ## Installation avancée
 
@@ -157,6 +269,126 @@ indépendant de ce dépôt.
 (`tts.voice_model`) — voix masculine. Pour une voix féminine, remplace
 `tom` par `siwis`, à la fois dans la commande de téléchargement
 (`python -m piper.download_voices siwis`) et dans `config.yml`.
+
+## Open WebUI
+
+Interface web de conversation par-dessus Ollama, optionnelle, lancée par
+`launch.py` — voir [Roadmap](ROADMAP.md#interface-web-de-conversation-open-webui)
+pour le raisonnement derrière ce choix (venv natif plutôt que Docker,
+conflit de version `onnxruntime` vérifié entre les deux projets).
+
+**Fenêtre séparée** : `launch.py` ouvre Open WebUI dans sa propre console
+Windows (`subprocess.CREATE_NEW_CONSOLE`) plutôt que de mélanger ses logs
+(verbeux — migrations de base de données, requêtes HTTP) avec ceux de
+Jarvis dans la même fenêtre. Jarvis reste dans la fenêtre principale, celle
+où `launch.py` a été lancé.
+
+**`RuntimeWarning: Couldn't find ffmpeg or avconv`** (visible dans les logs
+d'Open WebUI, pas ceux de Jarvis) : `pydub`, utilisé par les fonctions
+audio propres à Open WebUI (bouton micro, upload de fichiers audio dans
+son interface — sans rapport avec le pipeline vocal de Jarvis), a besoin du
+binaire externe **ffmpeg**, proposé comme paquet optionnel dans
+`install.ps1` (`Gyan.FFmpeg`, voir [Installation](#installation)). Si
+l'avertissement persiste après l'avoir installé : `launch.py` relit le
+`PATH` depuis le registre à chaque démarrage (`rafraichir_path()`, fonction
+`winreg`) pour couvrir le cas classique où le terminal a été ouvert avant
+l'installation de ffmpeg — mais un `open-webui serve` lancé à la main,
+sans passer par `launch.py`, resterait bloqué par le même piège de `PATH`
+tant que ce terminal-là n'est pas rouvert.
+
+**Installation** (une fois, dans son propre venv — jamais dans
+`server/.venv`) :
+
+```powershell
+python -m venv openwebui\.venv-openwebui
+openwebui\.venv-openwebui\Scripts\pip install open-webui
+```
+
+Puis active-le dans `config.yml` :
+
+```yaml
+open_webui:
+  enabled: true
+  port: 3000
+```
+
+`launch.py` le démarre alors automatiquement avec Jarvis
+(`http://127.0.0.1:3000`). Sans ce venv installé, `launch.py` continue de
+lancer Jarvis normalement, avec un avertissement clair.
+
+**Où vont les données (comptes, historique de chat) ?** Par défaut, Open
+WebUI écrit sa base directement dans `site-packages/` à l'intérieur de son
+propre venv — perdue si tu recrées `openwebui/.venv-openwebui`. `launch.py`
+la redirige vers `openwebui/data/` (variable d'environnement `DATA_DIR`,
+gitignored) automatiquement. Si tu lances `open-webui serve` toi-même sans
+passer par `launch.py`, pense à définir `DATA_DIR` de la même façon.
+
+**CORS** : par défaut, Open WebUI accepte les requêtes cross-origin depuis
+n'importe quel site (`CORS_ALLOW_ORIGIN=*`, avec un avertissement au
+démarrage) — un site malveillant ouvert dans le même navigateur pourrait
+interroger l'API locale. `launch.py` la restreint à sa propre origine
+(`CORS_ALLOW_ORIGIN=http://127.0.0.1:<port>`) quand `open_webui.host` vaut
+`127.0.0.1` (le défaut). Sans effet si tu as choisi `0.0.0.0` pour y
+accéder depuis un autre appareil du réseau : l'origine du navigateur
+distant n'est alors pas prévisible à l'avance, le défaut `*` d'Open WebUI
+s'applique.
+
+### Purger les données d'Open WebUI
+
+Deux commandes séparées, pour deux besoins différents — `launch.py` quitte
+juste après, sans démarrer la stack :
+
+- **`python launch.py --purge-webui`** : reset complet. Supprime
+  `openwebui/data/` entier (historique de chat, comptes, fichiers uploadés,
+  index vectoriel) — recréé de zéro au prochain lancement (nouveau compte
+  admin à recréer). Aucun prérequis.
+- **`python launch.py --purge-webui-memory`** : efface uniquement la
+  fonction **Memory** d'Open WebUI (les faits qu'il retient sur toi entre
+  les conversations, Réglages > Personnalisation > Mémoire) — laisse
+  l'historique de chat et les comptes intacts. Passe par l'API officielle
+  d'Open WebUI (`DELETE /api/v1/memories/delete/user`), pas par une
+  manipulation directe de `webui.db`. Prérequis :
+  1. Open WebUI déjà lancé (`python launch.py`, dans un autre terminal).
+  2. **Autoriser les clés API** dans Panneau d'administration > Réglages > Général.
+  3. Générer une clé dans Réglages > Compte > Clés API, et la coller dans
+     `config.yml` sous `open_webui.api_key`.
+
+Les quatre demandent une confirmation avant d'agir (`y`/`N`) — passe `--yes`
+pour l'ignorer (utile dans un script).
+
+**Volontairement pas dans `config.yml`** : purger est un acte destructif —
+un interrupteur qui efface tout silencieusement à chaque démarrage est le
+genre de réglage qu'on oublie d'avoir activé, jusqu'au jour où on perd un
+historique auquel on tenait. Ces deux variantes existent pour purger *en
+même temps* que tu démarres la stack (au lieu de purger puis quitter comme
+`--purge-webui`/`--purge-webui-memory`), mais restent des options à taper
+explicitement à chaque fois :
+
+- **`python launch.py --purge-webui-on-start`** : purge complète juste avant
+  de lancer Open WebUI, puis démarre la stack normalement.
+- **`python launch.py --purge-webui-memory-on-start`** : démarre la stack,
+  attend qu'Open WebUI réponde sur `/health` (jusqu'à 60s), puis purge sa
+  mémoire. Si `api_key` est vide ou qu'Open WebUI ne répond pas à temps, un
+  avertissement s'affiche et **le reste du démarrage continue normalement**
+  (jamais bloquant pour Jarvis).
+
+**Deux purges combinées en même temps ?** (`--purge-webui` +
+`--purge-webui-memory`, ou `--purge-webui-on-start` +
+`--purge-webui-memory-on-start`) : la purge complète efface `webui.db` en
+entier, donc aussi la table qui contient la clé API — la clé de
+`config.yml` devient invalide sur cette instance neuve, et `--purge-webui`
+ne démarre de toute façon rien (pas de serveur à appeler). `launch.py`
+détecte les deux cas et **saute la purge mémoire** (redondante : tout est
+déjà vide) avec un message explicite, plutôt que de laisser un appel API
+échouer silencieusement ou sans explication.
+
+**`qwen2.5-coder` qui "code" en appelant des outils au lieu de répondre** :
+symptôme d'un system prompt pollué par des exemples d'outils Jarvis
+(probablement copiés-collés depuis ce README dans un prompt système global
+d'Open WebUI). Corrige dans **Espace de travail > Modèles > Créer un
+modèle**, basé sur `qwen2.5-coder:7b`, avec son propre system prompt
+(vide/neutre) — plutôt que de modifier le prompt système par défaut global
+ou la base SQLite d'Open WebUI directement.
 
 ## Domotique : Home Assistant en local
 
