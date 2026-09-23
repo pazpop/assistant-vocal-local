@@ -568,10 +568,8 @@ python main.py --debug-audio
 - **TTS (Piper)** : tourne sur CPU par défaut (`tts.use_cuda: false`) —
   largement suffisant en pratique, et ça laisse ton GPU disponible pour
   Whisper + Qwen2.5.
-- **Licence de Piper** : `OHF-Voice/piper1-gpl` est publié en **GPL-3.0**.
-  Piper reste une dépendance installée via `pip`, jamais redistribuée ici,
-  donc ce projet reste sous Apache 2.0 (voir [LICENSE](LICENSE)) — vérifie les
-  implications de la GPL-3.0 avant toute redistribution plus large.
+- **Licence de Piper** : `OHF-Voice/piper1-gpl` est publié en **GPL-3.0**,
+  comme ce projet (voir [LICENSE](LICENSE)) — pas de conflit de licence.
 - **Chemins de modèles** : `config.py` calcule les chemins vers `models/`
   relativement à sa propre position sur le disque, donc ça fonctionne quel
   que soit le dossier depuis lequel tu lances `python main.py`.
@@ -667,6 +665,6 @@ Silero déjà embarqué dans `faster-whisper`.
 
 ## 📄 Licence
 
-Ce projet est sous licence Apache 2.0 — voir [LICENSE](LICENSE). Les dépendances
+Ce projet est sous licence GPL-3.0 — voir [LICENSE](LICENSE). Les dépendances
 tierces (Piper, faster-whisper, Ollama...) conservent leurs propres licences
 respectives.
