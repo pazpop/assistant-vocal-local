@@ -50,7 +50,7 @@ contre [473 g CO2/kWh en moyenne mondiale en 2024](https://ember-energy.org/late
 - 🕐 **Date et heure** : "quelle heure est-il ?", "on est quel jour ?" — calculé localement, sans appel réseau
 - 📊 **Panneau de ressources** : page locale (CPU/RAM/VRAM + latences du pipeline), voir [section dédiée](#-panneau-de-ressources)
 
-**Désactivable dans `config.yml`** : Domotique (`home_assistant.token` vide), Alertes météo (`alerts.feed_url` vide) et Panneau de ressources (`dashboard.enabled: false`) — chacun démarre quand même sans planter si désactivé ou mal configuré, avec un message clair au lancement.
+**Chaque module optionnel a sa propre clé `enabled` dans `config.yml`** : `home_assistant.enabled`, `weather.enabled`, `alerts.enabled`, `dashboard.enabled` — un seul contrat cohérent pour tout activer/désactiver, plutôt que des conventions différentes selon le module. Un module désactivé (ou mal configuré alors qu'il est activé) ne fait jamais planter l'assistant : il démarre quand même, avec un message clair au lancement.
 
 ## 🧩 Architecture
 
@@ -257,7 +257,8 @@ HA, ce chemin continue de fonctionner en parallèle, indépendamment de Jarvis.
 1. Dans Home Assistant : **Profil (en bas à gauche) > Sécurité > Jetons
    d'accès longue durée > Créer un jeton**. Copie-le, il ne sera plus
    affiché ensuite.
-2. Colle-le dans `config.yml`, sous `home_assistant.token`.
+2. Passe `home_assistant.enabled: true` dans `config.yml`, colle le jeton
+   sous `home_assistant.token`.
 3. Ajuste `home_assistant.base_url` vers l'**adresse IP** de ta VM (ex.
    `http://192.168.1.100:8123`) — évite `homeassistant.local` (mDNS peu
    fiable sous Windows). Réserve si possible une IP fixe pour la VM dans ton
@@ -408,6 +409,8 @@ cache, jamais une erreur.
 
 Ville introuvable ou Open-Meteo injoignable : la météo se désactive
 proprement, avec un message clair, sans affecter le reste de l'assistant.
+Mets `weather.enabled: false` dans `config.yml` pour la désactiver toi-même
+volontairement.
 
 ## 🚨 Alertes météo
 
@@ -419,16 +422,17 @@ supplémentaire.
 
 1. Trouve l'URL du flux de ta région sur la page ci-dessus. Privilégie
    l'URL en **"\_f.xml"** (français) plutôt que "\_e.xml" (anglais).
-2. Colle-la dans `config.yml` :
+2. Passe `enabled: true` et colle l'URL dans `config.yml` :
    ```yaml
    alerts:
+     enabled: true
      feed_url: "https://weather.gc.ca/rss/battleboard/qcrm2_f.xml"  # exemple : secteur de Montréal
      check_interval_minutes: 15
      quiet_hours_start: "22:00"
      quiet_hours_end: "08:00"
    ```
-3. Laisse `feed_url` vide pour désactiver complètement cette fonctionnalité
-   (comportement par défaut).
+3. Laisse `enabled: false` (valeur par défaut) pour désactiver complètement
+   cette fonctionnalité.
 
 **Deux façons de l'utiliser :**
 

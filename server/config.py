@@ -144,6 +144,11 @@ LLM_SYSTEM_PROMPT_TEMPLATE = (
     "si on te le demande (ex: \"quelle heure est-il\", \"on est quel jour ?\")."
 )
 
+# --- Météo (Open-Meteo) ---
+# Défaut à True : la météo a toujours été activée par défaut (contrairement
+# à la domotique/aux alertes, qui exigent un secret ou une URL à fournir).
+WEATHER_ENABLED = _get("weather.enabled", True)
+
 # --- Localisation (partagée par la météo ET la date/heure, pour rester
 # cohérentes : les deux doivent parler de la même région) ---
 LOCATION_CITY = _get("location.city", "Montréal")
@@ -155,9 +160,17 @@ HA_BASE_URL = _get("home_assistant.base_url", "")
 HA_VERIFY_SSL = _get("home_assistant.verify_ssl", True)
 HA_TOKEN = _get("home_assistant.token", "") or ""
 HA_DEVICE_ALIASES: dict[str, str] = _get("home_assistant.device_aliases", {}) or {}
+# Défaut déduit de la présence d'un token (comportement historique, avant
+# l'ajout de cette clé) si "enabled" est absent de config.yml — une
+# installation existante qui a déjà rempli son token continue de fonctionner
+# sans y toucher. Une valeur explicite de "enabled" prend toujours le dessus.
+HA_ENABLED = _get("home_assistant.enabled", bool(HA_TOKEN))
 
 # --- Alertes météo publiques (Environnement Canada, flux Atom gratuit) ---
 ALERTS_FEED_URL = _get("alerts.feed_url", "") or ""
+# Même logique de défaut déduit que HA_ENABLED ci-dessus, à partir de
+# feed_url plutôt que du token.
+ALERTS_ENABLED = _get("alerts.enabled", bool(ALERTS_FEED_URL))
 # Intervalle entre deux sondages en arrière-plan (minutes). 0 = pas de
 # sondage automatique, seulement à la demande.
 ALERTS_CHECK_INTERVAL_MINUTES = _get("alerts.check_interval_minutes", 15)

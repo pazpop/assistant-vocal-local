@@ -206,19 +206,25 @@ def main() -> None:
     tts = TextToSpeech()
     vad = VoiceActivityDetector()
 
-    try:
-        ha_client: HomeAssistantClient | None = HomeAssistantClient()
-        print("✅ Connecté à Home Assistant.")
-    except RuntimeError as exc:
-        print(f"⚠️  Domotique désactivée : {exc}")
-        ha_client = None
+    ha_client: HomeAssistantClient | None = None
+    if config.HA_ENABLED:
+        try:
+            ha_client = HomeAssistantClient()
+            print("✅ Connecté à Home Assistant.")
+        except RuntimeError as exc:
+            print(f"⚠️  Domotique désactivée : {exc}")
+    else:
+        print("⏸️  Domotique désactivée (home_assistant.enabled: false).")
 
-    try:
-        weather_client: WeatherClient | None = WeatherClient()
-        print(f"✅ Météo activée pour {config.LOCATION_CITY}.")
-    except RuntimeError as exc:
-        print(f"⚠️  Météo désactivée : {exc}")
-        weather_client = None
+    weather_client: WeatherClient | None = None
+    if config.WEATHER_ENABLED:
+        try:
+            weather_client = WeatherClient()
+            print(f"✅ Météo activée pour {config.LOCATION_CITY}.")
+        except RuntimeError as exc:
+            print(f"⚠️  Météo désactivée : {exc}")
+    else:
+        print("⏸️  Météo désactivée (weather.enabled: false).")
 
     def annoncer_alerte(texte: str) -> None:
         """Appelé (dans le thread de sondage de AlertesMeteoClient) dès
@@ -229,12 +235,15 @@ def main() -> None:
         print(f"\n🚨 Jarvis  : {message}\n")
         play_audio(tts.synthesize(message), tts.sample_rate)
 
-    try:
-        alertes_client: AlertesMeteoClient | None = AlertesMeteoClient(on_nouvelle_alerte=annoncer_alerte)
-        print("✅ Alertes météo activées.")
-    except RuntimeError as exc:
-        print(f"⚠️  Alertes météo désactivées : {exc}")
-        alertes_client = None
+    alertes_client: AlertesMeteoClient | None = None
+    if config.ALERTS_ENABLED:
+        try:
+            alertes_client = AlertesMeteoClient(on_nouvelle_alerte=annoncer_alerte)
+            print("✅ Alertes météo activées.")
+        except RuntimeError as exc:
+            print(f"⚠️  Alertes météo désactivées : {exc}")
+    else:
+        print("⏸️  Alertes météo désactivées (alerts.enabled: false).")
 
     # Le minuteur sonne dans son propre thread (threading.Timer), donc
     # potentiellement pendant que Jarvis écoute ou parle déjà autre chose.

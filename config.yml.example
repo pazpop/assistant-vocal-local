@@ -61,6 +61,12 @@ llm:
   # Modèle Ollama à utiliser (doit être déjà récupéré via `ollama pull`).
   model: qwen2.5:7b
 
+weather:
+  # Désactive complètement la météo (obtenir_meteo) si tu ne veux pas de
+  # cette fonctionnalité. Indépendant de la date/heure (date_time.py), qui ne
+  # partage que la localisation ci-dessous, pas ce commutateur.
+  enabled: true
+
 location:
   # Nom utilisé dans les réponses parlées (météo, date/heure).
   city: "Montréal"
@@ -75,11 +81,14 @@ location:
   timezone: "America/Toronto"
 
 alerts:
+  # Désactive complètement les alertes météo. Mets aussi "feed_url"
+  # ci-dessous une fois que tu veux vraiment l'activer.
+  enabled: false
   # URL du flux Atom d'alertes météo publiques (Environnement Canada, gratuit,
   # sans compte) pour ta région. Trouve la tienne ici :
   # https://www.canada.ca/en/environment-climate-change/services/weather-general-tools-resources/weatheroffice-online-services/atom-feeds.html
   # Privilégie l'URL se terminant par "_f.xml" (français) plutôt que "_e.xml"
-  # (anglais). Laisse vide pour désactiver cette fonctionnalité.
+  # (anglais). Sans effet si "enabled" ci-dessus est resté à false.
   feed_url: ""
   # Intervalle (en minutes) entre deux vérifications automatiques en
   # arrière-plan, pour que Jarvis t'avertisse spontanément d'une nouvelle
@@ -97,6 +106,9 @@ alerts:
   quiet_hours_end: "08:00"
 
 home_assistant:
+  # Désactive complètement la domotique. Configure aussi "base_url" et
+  # "token" ci-dessous une fois que tu veux vraiment l'activer.
+  enabled: false
   # Adresse de ta VM/machine Home Assistant. Utilise son IP (idéalement
   # fixe/réservée dans ton routeur), PAS "homeassistant.local" : la
   # résolution mDNS est peu fiable sous Windows sans Bonjour installé.
@@ -106,8 +118,7 @@ home_assistant:
   verify_ssl: true
   # Jeton d'accès longue durée : dans Home Assistant, Profil (en bas à
   # gauche) > Sécurité > Jetons d'accès longue durée > Créer un jeton.
-  # Laisse vide pour désactiver la domotique (l'assistant démarre quand même,
-  # juste sans cette fonctionnalité).
+  # Sans effet si "enabled" ci-dessus est resté à false.
   token: ""
   # Alias de noms pour le LLM : utile quand le `friendly_name` Home Assistant
   # est verbeux/redondant (ex: appareils importés via un pont HomeKit, qui
