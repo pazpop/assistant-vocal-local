@@ -87,7 +87,8 @@ GPU : voir [ARCHITECTURE.md](ARCHITECTURE.md#installation-avancée) et
 openWakeWord (mot-clé) · Silero VAD · faster-whisper (STT, GPU) ·
 Ollama/Qwen2.5:7b (LLM) · Piper (TTS, CPU) · Home Assistant (domotique, API
 REST locale) · Open-Meteo + Environnement Canada (météo/alertes, gratuits,
-sans clé). Schéma complet et choix techniques : [ARCHITECTURE.md](ARCHITECTURE.md).
+sans clé) · Open WebUI (interface web, optionnelle). Schéma complet et
+choix techniques : [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 🧪 Tests
 

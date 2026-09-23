@@ -23,6 +23,7 @@ flowchart LR
     TTS --> SPK([🔊 Haut-parleurs])
     STT -.->|latence| DASH["📊 Panneau de ressources<br/>127.0.0.1:8790"]
     LLM -.->|latence| DASH
+    LLM <-.->|interface web, optionnelle| WEBUI["🖥️ Open WebUI<br/>127.0.0.1:3000"]
 ```
 
 | Composant | Technologie | Rôle |
@@ -38,6 +39,7 @@ flowchart LR
 | Minuteur | [`threading.Timer`](#minuteurs) (bibliothèque standard) | Minuteurs vocaux, sonnerie + annonce à l'expiration |
 | Historique | `LanguageModel.history` (RAM, en process) | Contexte de la conversation en cours, jamais persisté |
 | Panneau de ressources | `http.server` (bibliothèque standard) | Suivi CPU/RAM/VRAM/latences, `127.0.0.1` uniquement |
+| Open WebUI | [Open WebUI](#open-webui) (optionnel, lancé par `launch.py`) | Interface web de conversation par-dessus Ollama, indépendante de Jarvis |
 
 ## Pourquoi ces choix ?
 
@@ -66,8 +68,8 @@ flowchart LR
 - **`server/dashboard.py` en `http.server` plutôt qu'un framework web** :
   voir [Roadmap](ROADMAP.md) — pensé comme la première brique d'une future
   API pour les satellites, pas comme un script à part à maintenir en plus.
-- **Pas de Docker** : envisagé puis écarté (voir [Roadmap](ROADMAP.md#décisions-écartées))
-  — le GPU passthrough sur Windows est plus fragile que le venv natif actuel,
+- **Pas de Docker** : envisagé puis écarté — le GPU passthrough sur Windows
+  est plus fragile que le venv natif actuel,
   et une CI sans GPU ne validerait jamais le vrai chemin d'exécution.
 
 ## Arborescence

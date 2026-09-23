@@ -1,16 +1,6 @@
 # Roadmap
 
-Fonctionnalités déjà intégrées et prochaines étapes. Détail technique de
-l'existant : [ARCHITECTURE.md](ARCHITECTURE.md).
-
-## Fonctionnalités intégrées
-
-- Mot-clé "Hey Jarvis" (openWakeWord) + VAD (Silero)
-- Transcription locale GPU (faster-whisper) + LLM local (Ollama/Qwen2.5:7b) + synthèse vocale (Piper)
-- Pipeline LLM → TTS en streaming (phrase par phrase, sans attendre la réponse complète)
-- Conversation continue (réécoute sans redire le mot-clé, historique en RAM uniquement)
-- Domotique (Home Assistant, API REST locale) · Météo (Open-Meteo) · Alertes météo proactives (Environnement Canada) · Minuteurs · Date/heure · Panneau de ressources local
-- Chaque module optionnel activable/désactivable de façon uniforme (`enabled: true/false` dans `config.yml`)
+Prochaines étapes. Détail technique de l'existant : [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## À venir
 
@@ -56,8 +46,7 @@ envoie l'audio au serveur et joue la réponse reçue, le serveur gardant
 HTTP local à étendre plus tard, plutôt qu'un serveur séparé.
 
 À ne découper en client/serveur réseau que lorsqu'un vrai second client
-existera — pas par anticipation (voir [Décisions écartées](#décisions-écartées)
-pour le raisonnement équivalent côté Docker).
+existera — pas par anticipation.
 
 - [ ] Serveur API (FastAPI) exposant STT+LLM+TTS+domotique en un seul endpoint
 - [ ] Client satellite minimal pour Raspberry Pi (wake word + micro + speaker)
@@ -91,72 +80,14 @@ chanson Kammthaar de Ultra Vomit."*
 
 Testé une première fois puis désinstallé après validation.
 
-- [ ] Réintégrer ComfyUI (launcher Windows ou Docker isolé, indépendant de la décision "pas de Docker" ci-dessous puisqu'il n'a aucune interaction avec le reste de la stack) + SDXL + LoRA Lightning
+- [ ] Réintégrer ComfyUI (launcher Windows ou Docker isolé — ce projet-ci n'utilise pas Docker, mais ComfyUI n'a aucune interaction avec le reste de la stack, donc reste indépendant de ce choix) + SDXL + LoRA Lightning
 - [ ] Intégration Open WebUI (**Paramètres > Images > ComfyUI Base URL**)
 - **Attention** : VRAM (6-8 Go) potentiellement incompatible avec Jarvis actif sur la RTX 3080 (10 Go) — cohabitation à valider avant d'aller plus loin.
 
-## Décisions écartées
+### Mise à jour du projet
 
-### Conteneurisation complète de la stack (Docker)
-
-Proposition initiale (2026-09-23) : `jarvis-api` + Ollama + Open WebUI en 3
-conteneurs Docker + un client audio hôte. Écartée après analyse :
-
-- **Ollama en conteneur** : déjà natif et fonctionnel — le faire tourner en
-  Docker sur Windows exigerait le passthrough GPU du backend WSL2 de Docker
-  Desktop + `nvidia-container-toolkit`, une couche de fragilité en plus pour
-  aucun bénéfice fonctionnel.
-- **`jarvis-api` (STT GPU) en conteneur** : même problème de passthrough
-  GPU, avec en prime le risque de désaccord de versions entre l'image et ce
-  qu'attend `ctranslate2` (`nvidia-cublas-cu12`/`nvidia-cudnn-cu12`). Une CI
-  sans GPU (runners gratuits GitHub) ne validerait de toute façon jamais le
-  vrai chemin CUDA — seulement un fallback CPU, avec une perte de
-  performance réelle sur `faster-whisper` (estimation en discussion, non
-  mesurée : ~1-3s au lieu de <0,5s par transcription courte, int8/CPU vs
-  float16/GPU).
-- **Open WebUI** : seul composant où Docker apportait un vrai service
-  (isolation d'un webapp aux dépendances lourdes), mais imposer Docker
-  Desktop (WSL2, overhead mémoire permanent) pour un seul conteneur n'est
-  pas justifié — remplacé par un venv Python natif dédié (voir
-  [ci-dessus](#interface-web-de-conversation-open-webui)).
-- **CI/CD par image Docker + ghcr.io** : remplacée par un simple job pytest
-  sur `ubuntu-latest` (voir [CI — compatibilité Linux](#ci--compatibilité-linux)),
-  qui valide la même chose (le code Python tourne sur Linux) sans le coût du
-  build d'image.
-
-## Fait
-
-- **2026-09-23** — `install.ps1` : installation en une commande
-  (`irm ... | iex`), sans prérequis (Python/Ollama installés via winget
-  avec confirmation individuelle, dépôt récupéré sans Git).
-- **2026-09-23** — Open WebUI migré vers un venv natif dédié (plus de
-  Docker), `launch.py` orchestre Jarvis + Open WebUI en un seul script,
-  toggle uniforme via `config.yml` (`open_webui.enabled`).
-- **2026-09-23** — Chaque module optionnel (`home_assistant`, `weather`,
-  `alerts`, `dashboard`, `open_webui`, `update_check`) utilise une clé
-  `enabled` uniforme dans `config.yml`. Règle stricte, sans exception :
-  clé absente = désactivé, jamais déduit d'un autre réglage (`token`,
-  `feed_url`...) — la rétrocompatibilité initialement construite pour
-  `home_assistant`/`alerts` (déduction depuis `token`/`feed_url` si
-  `enabled` absent) a été retirée sur demande explicite, au profit d'une
-  règle simple et identique pour tous les modules.
-- **2026-09-23** — Documentation réorganisée : README raccourci, détail
-  technique dans `ARCHITECTURE.md`, suivi des fonctionnalités dans ce
-  fichier.
-- **2026-09-23** — `main.py` affiche aussi l'état d'Open WebUI et de la
-  vérification de version, juste avant "Assistant prêt" (étiquetés "géré
-  par launch.py" — `main.py` ne les démarre pas, simple rappel de
-  `config.yml`). Domotique/météo/alertes/dashboard restent uniquement
-  annoncés individuellement pendant le chargement, comme avant. Une
-  première version ajoutait un résumé complet des 6 modules en plus de ces
-  messages individuels — doublon visible à l'écran, signalé et corrigé.
-  Testé (plus de doublon).
-- **2026-09-23** — `alerts.feed_url` par défaut rempli avec le flux de
-  Montréal (`qcrm2_f.xml`, français), cohérent avec `location` par défaut.
-- **2026-09-23** — Log de démarrage regroupé en deux sections : `launch.py`
-  imprime `==== Core ====` (Ollama, vérification de version, Jarvis/Open
-  WebUI lancés), `main.py` imprime `==== Modules ====` pour ses propres
-  lignes de statut. Pas de fusion chronologique unique entre les deux
-  process (capturer la sortie de Jarvis casserait le streaming
-  caractère par caractère de ses réponses) — testé, les deux sections
-  s'affichent correctement chacune de leur côté.
+- [ ] Documenter comment mettre à jour une installation existante.
+  `install.ps1` ne sait aujourd'hui que faire une installation neuve — s'il
+  détecte que `requirements.txt` est déjà là, il n'essaie pas de retélécharger
+  le code. `launch.py` prévient juste qu'une nouvelle version existe
+  (`update_check`), sans expliquer quoi faire ensuite.
