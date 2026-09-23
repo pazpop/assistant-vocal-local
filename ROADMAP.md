@@ -33,8 +33,9 @@ Objectif : rendre le démarrage accessible à quelqu'un qui n'est pas développe
 
 ### CI — compatibilité Linux
 
-- [ ] Job GitHub Actions sur `ubuntu-latest` : `pip install -r requirements.txt` (lignes CUDA commentées) + `pytest tests/`. Valide que le code Python tourne sur Linux, sans Docker ni build d'image.
+- [ ] Job GitHub Actions sur `ubuntu-latest` : `pip install -r requirements.txt` (lignes CUDA commentées) + `pytest tests/`. Valide que le code Python tourne sur Linux, sans Docker ni build d'image. Objectif aussi : moins besoin de relancer manuellement toute la suite après chaque petite modification — la CI attrape les régressions après coup.
 - **Limite à documenter, pas à découvrir plus tard** : les runners gratuits GitHub n'ont pas de GPU — cette CI ne validera jamais le vrai chemin `stt.device: cuda`, seulement le fallback CPU.
+- [ ] Tests pour `launch.py` — aujourd'hui zéro couverture automatisée, seulement testé à la main. Les parties qui touchent réseau/sous-process sont difficiles à tester tel quel, mais la logique pure (parsing des arguments, décision "les deux flags de purge en même temps", lecture/validation de `VERSION`) est testable sans lancer Jarvis ou Ollama.
 
 ### Satellites Raspberry Pi
 
@@ -91,3 +92,9 @@ Testé une première fois puis désinstallé après validation.
   détecte que `requirements.txt` est déjà là, il n'essaie pas de retélécharger
   le code. `launch.py` prévient juste qu'une nouvelle version existe
   (`update_check`), sans expliquer quoi faire ensuite.
+- [ ] Automatiser `VERSION` plutôt que de l'incrémenter à la main — sur le
+  modèle d'arcadepipe (`VERSION = "2." + nombre de commits`). À adapter ici
+  : `install.ps1` ne dépend pas de Git côté utilisateur, mais le calcul se
+  ferait côté mainteneur (qui a Git), via un hook Git local ou une étape
+  GitHub Actions au push, pour produire un fichier `VERSION` déjà à jour —
+  jamais calculé par l'utilisateur final.
