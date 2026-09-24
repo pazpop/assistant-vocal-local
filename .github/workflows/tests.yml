@@ -33,8 +33,18 @@ jobs:
       - name: Installe les dépendances
         run: pip install -r requirements.txt pytest
 
-      - name: Lance les tests
+      - name: Lance les tests (serveur)
         run: pytest tests/ -v
+
+      # server/ et satellite/ définissent chacun un module "config"/
+      # "audio_io" : les lancer dans le même process pytest ferait
+      # retourner le mauvais module à l'un des deux (sys.modules est un
+      # cache global par nom d'import) — d'où deux invocations séparées.
+      - name: Installe les dépendances (satellite)
+        run: pip install -r satellite/requirements.txt
+
+      - name: Lance les tests (satellite)
+        run: pytest satellite/tests/ -v
 
   bump-version:
     name: Met à jour VERSION

@@ -40,18 +40,52 @@ Objectif : rendre le démarrage accessible à quelqu'un qui n'est pas développe
 
 ### Satellites Raspberry Pi
 
-`satellite/` accueillera un client léger (mot-clé + micro + haut-parleur) qui
-envoie l'audio au serveur et joue la réponse reçue, le serveur gardant
-`stt.py`/`llm.py`/`tts.py`/`home_assistant.py` derrière une petite API
-(FastAPI par exemple). Le [panneau de ressources](ARCHITECTURE.md#panneau-de-ressources)
-(`server/dashboard.py`) est un premier pas dans cette direction : un serveur
-HTTP local à étendre plus tard, plutôt qu'un serveur séparé.
+Matériel commandé (2026-09-23) : Raspberry Pi 4 Model B/2GB + ReSpeaker
+2-Mics Pi HAT v2.0 — `satellite/` accueille le client léger (mot-clé + micro
++ haut-parleur), en attente de matériel pour être testé pour de vrai.
+Procédure d'installation du matériel/OS/pilotes (Raspberry Pi Imager, HAT
+ReSpeaker) :
+[satellite/RASPBERRY_PI_SETUP.md](satellite/RASPBERRY_PI_SETUP.md).
 
-À ne découper en client/serveur réseau que lorsqu'un vrai second client
-existera — pas par anticipation.
-
-- [ ] Serveur API (FastAPI) exposant STT+LLM+TTS+domotique en un seul endpoint
-- [ ] Client satellite minimal pour Raspberry Pi (wake word + micro + speaker)
+- [x] Serveur API (FastAPI, `server/satellite_api.py`, 2026-09-23) :
+  endpoint unique `POST /assistant` (WAV in, WAV out), protégé par une clé
+  API (`satellite.api_key`, obligatoire — écoute sur `0.0.0.0` par défaut,
+  pas seulement `127.0.0.1`). Réutilise le même `LanguageModel`/routage
+  d'outils que la boucle micro locale (`choisir_reponse`, extrait de
+  `main.py`) — mêmes outils, même historique de conversation. Détail :
+  [ARCHITECTURE.md](ARCHITECTURE.md#api-satellite). Testé de bout en bout
+  (démarrage, rejet 401 sans clé valide, réponse WAV 200 avec la bonne clé,
+  suite pytest complète toujours au vert) — pas encore avec un vrai
+  satellite, qui n'existe pas encore physiquement.
+- [x] Client satellite minimal pour Raspberry Pi (`satellite/`, 2026-09-23) :
+  mot-clé (openWakeWord) + enregistrement (seuil RMS, pas de VAD Silero —
+  voir [ARCHITECTURE.md](ARCHITECTURE.md#client-satellite) pour le
+  pourquoi) + envoi HTTP au serveur + lecture de la réponse. Aucun code
+  dupliqué depuis `server/` (installation autonome, son propre venv). Un
+  tour par mot-clé pour cette première version — pas encore de conversation
+  continue côté client (le serveur garde déjà l'historique, donc ça
+  viendrait surtout du client). Testé : imports propres, suite pytest dédiée
+  (`satellite/tests/`) au vert — pas encore sur un vrai Pi, qui n'est pas
+  encore arrivé.
+- [ ] Conversation continue côté satellite (réécouter après une réponse sans
+  redire "Hey Jarvis", comme la boucle micro locale)
+- [ ] Chiffrer le trafic satellite ↔ serveur (TLS) : aujourd'hui en clair
+  (HTTP), y compris la clé API elle-même — lisible par quiconque peut
+  sniffer le Wi-Fi local. Cohérent avec le reste du projet (Home Assistant,
+  Open WebUI tournent aussi en HTTP sur l'hypothèse "réseau local de
+  confiance"), mais c'est la première fois que de l'audio vocal traverse
+  vraiment le Wi-Fi plutôt que rester sur `127.0.0.1`. Impact perf attendu
+  négligeable (le pipeline STT→LLM→TTS prend déjà 1-3+ secondes ; le coût
+  TLS se limite à quelques ms, surtout si la connexion HTTP est réutilisée
+  plutôt que rouverte à chaque question). Le vrai coût sera la complexité
+  (certificat auto-signé à générer/distribuer, `verify_ssl` côté client
+  comme pour Home Assistant), pas la latence.
+- [x] Démarrage automatique du client au boot du Pi (service systemd,
+  2026-09-23) : documenté dans
+  [satellite/README.md](satellite/README.md#démarrage-automatique-systemd) —
+  unité générée par un bloc de commandes (`$USER`/`$(pwd)` substitués par le
+  shell), `Restart=on-failure` en filet de sécurité en plus de la boucle
+  `try/except` déjà présente dans `main.py`. Pas encore testé sur un vrai Pi.
 - [ ] Découverte automatique du serveur sur le réseau local (mDNS)
 - [ ] Support multi-satellites (un nom de zone par Pi : "Hey Jarvis" partout, réponse localisée)
 

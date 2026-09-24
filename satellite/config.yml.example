@@ -1,0 +1,52 @@
+# Configuration du client satellite Jarvis (Raspberry Pi).
+#
+# Copie ce fichier en "config.yml" (même dossier), puis adapte les valeurs.
+# "config.yml" n'est JAMAIS commité (voir .gitignore) : c'est l'endroit où
+# stocker ta clé API personnelle, sans risquer de la publier par erreur.
+#
+# cp config.yml.example config.yml
+
+server:
+  # Adresse complète de l'API satellite du serveur (le PC qui fait tourner
+  # Jarvis), avec /assistant à la fin — voir server/satellite_api.py et
+  # ARCHITECTURE.md#api-satellite. Trouve l'IP du serveur sur ton réseau
+  # local (ex: "ipconfig" sous Windows), pas "nom.local" (mDNS peu fiable).
+  url: "http://192.168.1.50:8791/assistant"
+  # Même valeur que satellite.api_key dans le config.yml du serveur.
+  api_key: ""
+  # Secondes avant d'abandonner si le serveur ne répond pas (LLM + TTS
+  # peuvent prendre plusieurs secondes selon le modèle utilisé).
+  timeout: 30
+
+zone:
+  # Nom de la pièce où se trouve ce satellite (ex: "cuisine", "chambre").
+  # Purement informatif pour l'instant (affiché dans la console au
+  # démarrage) — utilisé plus tard pour le support multi-satellites, voir
+  # ROADMAP.md.
+  name: ""
+
+wake_word:
+  # Modèle pré-entraîné fourni par openWakeWord (identique au serveur).
+  model: hey_jarvis
+  display_name: "Hey Jarvis"
+  # Score de confiance minimum (0-1). Si "Hey Jarvis" n'est pas toujours
+  # reconnu, baisse-le (essaie 0.3-0.4) ; calibre avec
+  # `python main.py --debug-audio`.
+  threshold: 0.5
+
+audio:
+  # Force un micro/haut-parleur précis plutôt que le périphérique par défaut
+  # du système. Trouve l'index ou le nom avec :
+  #   python -c "import sounddevice as sd; print(sd.query_devices())"
+  # input_device: 1
+  # output_device: 0
+  # Niveau (0-1, RMS) au-dessus duquel un bloc audio est considéré comme de
+  # la parole. Pas de VAD (Silero) ici contrairement au serveur — un simple
+  # seuil de volume, pour rester léger sur le Pi (voir la note dans
+  # audio_io.py). Calibre avec `python main.py --debug-audio` si
+  # l'enregistrement se coupe trop tôt ou trop tard.
+  silence_threshold: 0.02
+  # Secondes de silence (après avoir parlé) avant d'arrêter l'enregistrement.
+  silence_duration: 1.0
+  # Durée max d'une question, en secondes (sécurité anti-boucle infinie).
+  max_record_seconds: 15

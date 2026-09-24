@@ -14,7 +14,7 @@ import re
 import sys
 import threading
 import time
-from typing import Callable
+from typing import Callable, Iterator
 
 import numpy as np
 
@@ -28,6 +28,7 @@ sys.stderr.reconfigure(encoding="utf-8")
 import config
 import dashboard
 import date_time
+import satellite_api
 from audio_io import play_audio, record_until_silence
 from date_time import DATE_TIME_TOOLS, demande_date_heure
 from home_assistant import HA_TOOLS, HomeAssistantClient, demande_domotique
@@ -205,6 +206,33 @@ def construire_outils(
     return tools, executer_outil
 
 
+def choisir_reponse(
+    question: str,
+    llm: LanguageModel,
+    routes_directes: list[tuple[Callable[[str], list[dict] | None], Callable[[str, dict], str]]],
+    tools_disponibles: list[dict],
+    executer_outil: Callable[[str, dict], str],
+    on_tool_call: Callable[[], None] | None = None,
+) -> Iterator[str]:
+    """Route une question vers ask_tool_direct (routes directes prioritaires,
+    voir construire_routes_directes) ou ask_with_tools/ask_stream en repli.
+
+    Partagée entre la boucle micro locale et satellite_api.py, pour que les
+    deux parlent au même Jarvis (mêmes outils, même historique de
+    conversation) plutôt que de dupliquer cette logique de routage."""
+    for matcher, tool_executor in routes_directes:
+        tools = matcher(question)
+        if tools is not None:
+            return llm.ask_tool_direct(
+                question, tools=tools, tool_executor=tool_executor, on_tool_call=on_tool_call
+            )
+    if tools_disponibles:
+        return llm.ask_with_tools(
+            question, tools=tools_disponibles, tool_executor=executer_outil, on_tool_call=on_tool_call
+        )
+    return llm.ask_stream(question)
+
+
 def main() -> None:
     args = parse_args()
 
@@ -281,6 +309,24 @@ def main() -> None:
         print("📊 Panneau de ressources désactivé (dashboard.enabled: false).")
 
     llm = LanguageModel(system_prompt=construire_system_prompt(ha_client))
+
+    def repondre_texte(question: str) -> str:
+        """Passée telle quelle à satellite_api.demarrer : un satellite envoie
+        une question déjà transcrite (STT fait côté serveur, voir
+        satellite_api.py) et attend une réponse texte complète, pas un flux
+        — la synthèse/lecture est ensuite gérée côté satellite_api, pas ici."""
+        return "".join(
+            choisir_reponse(question, llm, routes_directes, tools_disponibles, executer_outil)
+        )
+
+    if config.SATELLITE_ENABLED:
+        if not config.SATELLITE_API_KEY:
+            print("⚠️  API satellite désactivée : satellite.api_key manquant dans config.yml.")
+        else:
+            url_satellite = satellite_api.demarrer(stt, tts, repondre_texte)
+            print(f"📡 API satellite : {url_satellite}")
+    else:
+        print("⏸️  API satellite désactivée (satellite.enabled: false).")
 
     # Pré-synthétisées une fois pour toutes : évite de faire tourner Piper
     # (et donc d'ajouter de la latence) à chaque déclenchement du mot-clé ou
@@ -383,27 +429,9 @@ def main() -> None:
 
                 t_reponse = time.time()
                 print("Jarvis  : ", end="", flush=True)
-                # ask_tool_direct (pas ask_with_tools) pour ces routes : voir
-                # sa docstring pour le pourquoi (réponse relayée telle
-                # quelle, sans historique). Voir construire_routes_directes
-                # pour l'ordre des routes.
-                for matcher, tool_executor in routes_directes:
-                    tools = matcher(question)
-                    if tools is not None:
-                        fragments = llm.ask_tool_direct(
-                            question, tools=tools, tool_executor=tool_executor, on_tool_call=on_tool_call
-                        )
-                        break
-                else:
-                    if tools_disponibles:
-                        fragments = llm.ask_with_tools(
-                            question,
-                            tools=tools_disponibles,
-                            tool_executor=executer_outil,
-                            on_tool_call=on_tool_call,
-                        )
-                    else:
-                        fragments = llm.ask_stream(question)
+                fragments = choisir_reponse(
+                    question, llm, routes_directes, tools_disponibles, executer_outil, on_tool_call
+                )
                 parler_en_flux(fragments, tts, file_audio)
                 print()
 

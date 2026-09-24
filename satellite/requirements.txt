@@ -1,0 +1,18 @@
+# Dépendances du client satellite (Raspberry Pi) — volontairement minimales :
+# pas de faster-whisper/piper-tts/ollama ici, tout le traitement lourd reste
+# sur le serveur (voir server/satellite_api.py). Versions figées, alignées
+# sur ../requirements.txt (voir sa note en tête pour le principe).
+
+# Mot-clé
+openwakeword==0.6.0
+
+# Audio (capture micro et lecture) — nécessite aussi libportaudio2
+# (système) : voir satellite/README.md.
+sounddevice==0.5.6
+numpy==2.4.6
+
+# Appel HTTP vers l'API satellite du serveur
+requests==2.34.2
+
+# Configuration (config.yml dans ce dossier)
+PyYAML==6.0.3

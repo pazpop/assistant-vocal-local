@@ -204,3 +204,11 @@ TTS_SPEAKER_ID = _get("tts.speaker_id", None)
 
 # --- Vérification de version (lancée uniquement par launch.py) ---
 UPDATE_CHECK_ENABLED = _get("update_check.enabled", False)
+
+# --- API satellite (voir ROADMAP.md > Satellites Raspberry Pi) : écoute au-delà
+# de 127.0.0.1 par défaut (0.0.0.0), donc toujours protégée par une clé API,
+# contrairement au panneau de ressources ou à Open WebUI en local. ---
+SATELLITE_ENABLED = _get("satellite.enabled", False)
+SATELLITE_HOST = _get("satellite.host", "0.0.0.0")
+SATELLITE_PORT = _get("satellite.port", 8791)
+SATELLITE_API_KEY = _get("satellite.api_key", "") or ""
