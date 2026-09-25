@@ -755,9 +755,13 @@ est normalement récupéré depuis l'installation de faster-whisper
 satellite (STT reste géré côté serveur) ; et le paquet `silero-vad` sur PyPI
 dépend de PyTorch même pour son mode ONNX — bien trop lourd sur un
 Raspberry Pi juste pour détecter un silence. `satellite/audio_io.py` utilise
-donc un simple seuil de volume (RMS, `audio.silence_threshold`) : moins
-robuste au bruit de fond, mais suffisant dans une pièce calme — limite
-connue, pas un oubli.
+donc un seuil de volume (RMS) : 2 × le bruit de fond mesuré au début de
+chaque enregistrement (plafonné, `audio.silence_threshold` servant de
+plancher). Un seuil fixe ne convenait pas : un HAT micro au bruit de fond
+élevé dépassait en permanence le seuil, la fin de parole n'était jamais
+détectée et chaque question attendait la durée max d'enregistrement. Moins
+robuste que le VAD du serveur face à un bruit de fond très variable (télé,
+radio) — limite connue, pas un oubli.
 
 **Version minimale, pas de conversation continue** : chaque question repart
 du mot-clé ("Hey Jarvis" à chaque tour), contrairement à la boucle micro

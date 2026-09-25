@@ -81,6 +81,9 @@ def main() -> None:
                     fin_parole_s=enregistrement.fin_parole_s,
                     coupe_par_duree_max=enregistrement.coupe_par_duree_max,
                     duree_max_s=config.MAX_RECORD_SECONDS,
+                    niveau_fond=enregistrement.niveau_fond,
+                    seuil=enregistrement.seuil,
+                    seuil_min=config.SILENCE_THRESHOLD,
                 )
             )
 

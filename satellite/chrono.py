@@ -13,22 +13,28 @@ def resumer_enregistrement(
     fin_parole_s: float,
     coupe_par_duree_max: bool,
     duree_max_s: float,
+    niveau_fond: float,
+    seuil: float,
+    seuil_min: float,
 ) -> str:
     """Ventile la durée d'enregistrement : le temps avant de parler, la parole
     elle-même, et le silence attendu avant de conclure que la question est
-    finie (c'est la partie que audio.silence_duration permet de raccourcir)."""
+    finie (c'est la partie que audio.silence_duration permet de raccourcir).
+    Indique aussi le bruit de fond mesuré et le seuil de parole qui en découle
+    : ce sont eux qui décident où la parole s'arrête."""
     parole_s = max(0.0, fin_parole_s - debut_parole_s)
     silence_s = max(0.0, duree_s - fin_parole_s)
     lignes = [
         f"⏱  Enregistrement : {duree_s:.1f} s",
         f"      {debut_parole_s:.1f} s avant de parler · {parole_s:.1f} s de parole · "
         f"{silence_s:.1f} s de silence attendu avant l'envoi",
+        f"      bruit de fond {niveau_fond:.3f} → seuil de parole {seuil:.3f} "
+        f"(minimum configuré : {seuil_min:.3f})",
     ]
     if coupe_par_duree_max:
         lignes.append(
             f"      ⚠️  arrêté par la durée max ({duree_max_s:g} s) : la fin de parole n'a "
-            "pas été détectée (bruit de fond au-dessus de audio.silence_threshold ? "
-            "essaie --debug-audio)"
+            "pas été détectée (bruit de fond très variable ? essaie --debug-audio)"
         )
     return "\n".join(lignes)
 

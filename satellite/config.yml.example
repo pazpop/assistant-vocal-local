@@ -41,10 +41,14 @@ audio:
   #   python -c "import sounddevice as sd; print(sd.query_devices())"
   # input_device: 1
   # output_device: 0
-  # Niveau (0-1, RMS) au-dessus duquel un bloc audio est considéré comme de
-  # la parole. Pas de VAD (Silero) ici contrairement au serveur — un simple
-  # seuil de volume, pour rester léger sur le Pi (voir la note dans
-  # audio_io.py). Calibre avec `python main.py --debug-audio` si
+  # Niveau MINIMUM (0-1, RMS) au-dessus duquel un bloc audio est considéré
+  # comme de la parole. Pas de VAD (Silero) ici contrairement au serveur —
+  # un seuil de volume, pour rester léger sur le Pi (voir la note dans
+  # audio_io.py). Le seuil réellement utilisé s'adapte au bruit de fond du
+  # micro, mesuré au début de chaque enregistrement (2 × ce bruit, plafonné
+  # à 0.12) : cette valeur n'est donc qu'un plancher pour une pièce très
+  # calme. Le bruit de fond et le seuil utilisés s'affichent après chaque
+  # question ; `python main.py --debug-audio` les montre en direct si
   # l'enregistrement se coupe trop tôt ou trop tard.
   silence_threshold: 0.02
   # Secondes de silence (après avoir parlé) avant d'arrêter l'enregistrement.

@@ -10,12 +10,16 @@ def test_resume_ventile_avant_parole_et_silence():
         fin_parole_s=5.4,
         coupe_par_duree_max=False,
         duree_max_s=15,
+        niveau_fond=0.043,
+        seuil=0.086,
+        seuil_min=0.02,
     )
 
     assert "Enregistrement : 6.4 s" in texte
     assert "2.1 s avant de parler" in texte
     assert "3.3 s de parole" in texte
     assert "1.0 s de silence attendu" in texte
+    assert "bruit de fond 0.043 → seuil de parole 0.086 (minimum configuré : 0.020)" in texte
     assert "⚠️" not in texte
 
 
@@ -29,6 +33,9 @@ def test_resume_signale_un_arret_par_la_duree_max():
         fin_parole_s=15.0,
         coupe_par_duree_max=True,
         duree_max_s=15,
+        niveau_fond=0.043,
+        seuil=0.086,
+        seuil_min=0.02,
     )
 
     assert "arrêté par la durée max (15 s)" in texte
@@ -42,6 +49,9 @@ def test_resume_ne_donne_jamais_de_duree_negative():
         fin_parole_s=1.05,  # arrondi de bloc au-delà de la durée totale
         coupe_par_duree_max=False,
         duree_max_s=15,
+        niveau_fond=0.043,
+        seuil=0.086,
+        seuil_min=0.02,
     )
 
     assert "0.0 s de silence attendu" in texte

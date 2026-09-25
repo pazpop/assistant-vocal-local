@@ -130,7 +130,10 @@ process pytest ferait retourner le mauvais module à l'un des deux (voir
   "Hey Jarvis" à chaque question) — simplification volontaire pour cette
   première version, voir [ROADMAP.md](../ROADMAP.md#satellites-raspberry-pi).
 - **Détection de fin de parole par seuil de volume (RMS)**, pas par VAD
-  contrairement au serveur — moins robuste au bruit de fond (pourquoi :
-  [ARCHITECTURE.md](../ARCHITECTURE.md#client-satellite)). Calibre
-  `audio.silence_threshold` si l'enregistrement se coupe trop tôt ou trop
-  tard.
+  contrairement au serveur — moins robuste au bruit de fond très variable
+  (pourquoi : [ARCHITECTURE.md](../ARCHITECTURE.md#client-satellite)). Le
+  seuil s'adapte au bruit de fond du micro à chaque enregistrement ;
+  `audio.silence_threshold` n'est qu'un plancher. Le bruit de fond mesuré et
+  le seuil utilisé s'affichent après chaque question (et en direct avec
+  `--debug-audio`) : à regarder si l'enregistrement se coupe trop tôt ou
+  n'en finit pas (arrêt par la durée max).
