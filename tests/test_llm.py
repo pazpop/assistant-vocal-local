@@ -28,13 +28,22 @@ class _Message(dict):
         return super().get(cle, defaut)
 
 
+def _flux(*messages):
+    """Imite le flux de ollama.chat(stream=True) : un chunk par message."""
+    return iter([{"message": _Message(**m)} for m in messages])
+
+
+def _appel_outil(nom="obtenir_meteo"):
+    return {"function": {"name": nom, "arguments": {}}}
+
+
 def test_ask_with_tools_sans_outil_ne_declenche_jamais_on_tool_call():
     """Une réponse purement conversationnelle (aucun tool_call) ne doit pas
     déclencher la phrase d'attente, même si des outils sont disponibles."""
     appels = []
 
-    def fake_chat(model, messages, tools=None, stream=False):
-        return {"message": _Message(content="Bonjour.", tool_calls=None)}
+    def fake_chat(model, messages, tools=None, stream=False, keep_alive=None):
+        return _flux({"content": "Bon"}, {"content": "jour."})
 
     lm = _lm_factice()
     with patch("llm.ollama.chat", side_effect=fake_chat) as mock_chat:
@@ -47,27 +56,41 @@ def test_ask_with_tools_sans_outil_ne_declenche_jamais_on_tool_call():
             )
         )
 
-    assert fragments == ["Bonjour."]
+    assert fragments == ["Bon", "jour."]
     assert appels == []
     mock_chat.assert_called_once()  # pas de second appel redondant
+    assert lm.history[-1] == {"role": "assistant", "content": "Bonjour."}
+
+
+def test_ask_with_tools_diffuse_avant_la_fin_de_la_generation():
+    """Le 1er fragment doit sortir avant que le LLM ait fini : c'est tout
+    l'intérêt du streaming pour commencer à parler tôt."""
+    produits = []
+
+    def flux():
+        for morceau in ("Un. ", "Deux."):
+            produits.append(morceau)
+            yield {"message": _Message(content=morceau)}
+
+    lm = _lm_factice()
+    with patch("llm.ollama.chat", return_value=flux()):
+        reponse = lm.ask_with_tools("salut", tools=[{"x": 1}], tool_executor=lambda n, a: "r")
+        assert next(reponse) == "Un. "
+
+    assert produits == ["Un. "]
 
 
 def test_ask_with_tools_avec_outil_declenche_on_tool_call_une_fois():
     appels = []
-    etapes = {"n": 0}
-
-    def fake_chat(model, messages, tools=None, stream=False):
-        etapes["n"] += 1
-        if etapes["n"] == 1:
-            return {
-                "message": _Message(
-                    tool_calls=[{"function": {"name": "obtenir_meteo", "arguments": {}}}]
-                )
-            }
-        return {"message": _Message(content="Il fait beau.", tool_calls=None)}
+    flux_par_tour = iter(
+        [
+            _flux({"tool_calls": [_appel_outil()]}),
+            _flux({"content": "Il fait beau."}),
+        ]
+    )
 
     lm = _lm_factice()
-    with patch("llm.ollama.chat", side_effect=fake_chat):
+    with patch("llm.ollama.chat", side_effect=lambda **kw: next(flux_par_tour)):
         fragments = list(
             lm.ask_with_tools(
                 "quel temps fait-il ?",
@@ -81,19 +104,30 @@ def test_ask_with_tools_avec_outil_declenche_on_tool_call_une_fois():
     assert appels == [1]  # déclenché une seule fois, pas à chaque outil/tour
 
 
+def test_ask_with_tools_renvoie_le_resultat_de_l_outil_au_llm():
+    envoyes = []
+    flux_par_tour = iter([_flux({"tool_calls": [_appel_outil()]}), _flux({"content": "Ok."})])
+
+    def fake_chat(**kw):
+        envoyes.append([dict(m) if isinstance(m, dict) else m for m in kw["messages"]])
+        return next(flux_par_tour)
+
+    lm = _lm_factice()
+    with patch("llm.ollama.chat", side_effect=fake_chat):
+        list(lm.ask_with_tools("meteo ?", tools=[{"x": 1}], tool_executor=lambda n, a: "Il pleut."))
+
+    dernier = envoyes[1][-1]
+    assert dernier == {"role": "tool", "tool_name": "obtenir_meteo", "content": "Il pleut."}
+
+
 def test_ask_with_tools_sans_on_tool_call_ne_plante_pas():
     """on_tool_call est optionnel : son absence ne doit rien casser.
     max_rounds=1 fait sortir de la boucle sans réponse finale, ce qui
-    déclenche l'appel streaming de repli."""
+    déclenche l'appel de repli sans outil."""
     lm = _lm_factice()
-    reponse_outil = {
-        "message": _Message(
-            tool_calls=[{"function": {"name": "obtenir_meteo", "arguments": {}}}]
-        )
-    }
-    flux_final = iter([{"message": {"content": "Voilà."}}])
+    flux_par_tour = iter([_flux({"tool_calls": [_appel_outil()]}), _flux({"content": "Voilà."})])
 
-    with patch("llm.ollama.chat", side_effect=[reponse_outil, flux_final]):
+    with patch("llm.ollama.chat", side_effect=lambda **kw: next(flux_par_tour)):
         fragments = list(
             lm.ask_with_tools(
                 "quel temps fait-il ?",
@@ -112,7 +146,7 @@ def test_ask_tool_direct_relaie_le_resultat_sans_reformulation():
     appel à ollama.chat (pas de second aller-retour)."""
     appels = []
 
-    def fake_chat(model, messages, tools=None, stream=False):
+    def fake_chat(model, messages, tools=None, stream=False, keep_alive=None):
         return {
             "message": _Message(
                 tool_calls=[{"function": {"name": "obtenir_date_heure", "arguments": {}}}]
@@ -142,7 +176,7 @@ def test_ask_tool_direct_sans_historique_mais_memorise_lechange():
     lm = _lm_factice()
     lm.history = [{"role": "user", "content": "vieille question"}, {"role": "assistant", "content": "vieille réponse"}]
 
-    def fake_chat(model, messages, tools=None, stream=False):
+    def fake_chat(model, messages, tools=None, stream=False, keep_alive=None):
         return {
             "message": _Message(
                 tool_calls=[{"function": {"name": "obtenir_date_heure", "arguments": {}}}]
@@ -178,7 +212,7 @@ def test_ask_tool_direct_sans_appel_d_outil_appelle_loutil_lui_meme():
     est utilisée à la place du texte halluciné."""
     lm = _lm_factice()
 
-    def fake_chat(model, messages, tools=None, stream=False):
+    def fake_chat(model, messages, tools=None, stream=False, keep_alive=None):
         return {"message": _Message(content="On est le [jour], [mois] [année].", tool_calls=None)}
 
     outil_tools = [{"type": "function", "function": {"name": "obtenir_date_heure"}}]

@@ -22,7 +22,6 @@ models/**/*.onnx
 models/**/*.onnx.json
 models/**/*.bin
 models/**/*.pt
-models/whisper/**
 !models/**/.gitkeep
 !models/**/README.md
 

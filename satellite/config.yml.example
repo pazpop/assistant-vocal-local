@@ -14,16 +14,14 @@ server:
   url: "http://192.168.1.50:8791/assistant"
   # Même valeur que satellite.api_key dans le config.yml du serveur.
   api_key: ""
-  # Secondes d'attente maximale avant d'abandonner si le serveur ne
-  # répond plus : pour la première phrase (STT + début du LLM + TTS), puis
-  # entre deux phrases de la réponse (elle arrive en flux, pas d'un bloc).
+  # Secondes d'attente maximale de chaque étape : fin de transcription,
+  # 1re phrase de la réponse (LLM + TTS), puis chaque phrase suivante.
   timeout: 30
 
 zone:
   # Nom de la pièce où se trouve ce satellite (ex: "cuisine", "chambre").
-  # Purement informatif pour l'instant (affiché dans la console au
-  # démarrage) — utilisé plus tard pour le support multi-satellites, voir
-  # ROADMAP.md.
+  # Doit être unique : le serveur s'en sert pour renvoyer ici les minuteurs
+  # demandés à ce satellite. Vide = "satellite".
   name: ""
 
 wake_word:
@@ -41,15 +39,10 @@ audio:
   #   python -c "import sounddevice as sd; print(sd.query_devices())"
   # input_device: 1
   # output_device: 0
-  # Niveau MINIMUM (0-1, RMS) au-dessus duquel un bloc audio est considéré
-  # comme de la parole. Pas de VAD (Silero) ici contrairement au serveur —
-  # un seuil de volume, pour rester léger sur le Pi (voir la note dans
-  # audio_io.py). Le seuil réellement utilisé s'adapte au bruit de fond du
-  # micro, mesuré au début de chaque enregistrement (2 × ce bruit, plafonné
-  # à 0.12) : cette valeur n'est donc qu'un plancher pour une pièce très
-  # calme. Le bruit de fond et le seuil utilisés s'affichent après chaque
-  # question ; `python main.py --debug-audio` les montre en direct si
-  # l'enregistrement se coupe trop tôt ou trop tard.
+  # Niveau MINIMUM (0-1, RMS) au-dessus duquel un bloc audio est de la
+  # parole. Le seuil réel s'adapte au bruit de fond de chaque enregistrement
+  # (voir audio_io.py) : cette valeur n'est qu'un plancher. Bruit de fond et
+  # seuil s'affichent après chaque question (et en direct avec --debug-audio).
   silence_threshold: 0.02
   # Secondes de silence (après avoir parlé) avant d'arrêter l'enregistrement.
   silence_duration: 1.0

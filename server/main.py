@@ -1,19 +1,20 @@
 """Point d'entrée : boucle principale de l'assistant vocal.
 
 Flux : mot-clé -> enregistrement -> STT -> (reset historique ?) -> LLM
-(streaming, + outils domotique Home Assistant si configuré) -> TTS -> lecture.
+(streaming, + outils : domotique, météo, minuteur...) -> TTS -> lecture.
 
 Le LLM et le TTS tournent en pipeline : dès qu'une phrase complète arrive du
 LLM, elle est synthétisée puis mise en file pour lecture, pendant que le LLM
 continue de générer la suite.
 """
 import argparse
+import functools
 import queue
 import random
 import sys
 import threading
 import time
-from typing import Callable, Iterator
+from typing import Callable, Iterable, Iterator
 
 import numpy as np
 
@@ -44,6 +45,8 @@ from weather_alerts import ALERT_TOOLS, AlertesMeteoClient, demande_alerte
 
 AU_REVOIR = "À la prochaine !"
 INCOMPREHENSION = "Désolé, je n'ai pas compris. Je repasse en veille."
+ERREUR_VOCALE = "Désolé, j'ai rencontré un problème. Réessaie dans un instant."
+PAUSE_APRES_ERREUR_S = 2  # évite de tourner à 100 % CPU si l'erreur persiste (micro débranché...)
 
 
 def demande_fin_conversation(texte: str) -> bool:
@@ -72,10 +75,19 @@ def parler_en_flux(fragments_llm, tts: TextToSpeech, file_audio: "queue.Queue") 
             print(fragment, end="", flush=True)
             yield fragment
 
-    for phrase in decouper_en_phrases(afficher_au_fil_de_l_eau(fragments_llm)):
-        file_audio.put(tts.synthesize(phrase))
+    try:
+        for phrase in decouper_en_phrases(afficher_au_fil_de_l_eau(fragments_llm)):
+            file_audio.put(tts.synthesize(phrase))
+    finally:
+        file_audio.put(None)  # sentinelle : plus rien à jouer, même après une erreur
 
-    file_audio.put(None)  # sentinelle : plus rien à jouer
+
+def sous_verrou(verrou: threading.Lock, flux: Iterable[str]) -> Iterator[str]:
+    """Garde `verrou` pendant tout le flux (et le libère même s'il est
+    abandonné en route) : un seul tour de conversation à la fois, pour que
+    deux appareils ne mélangent pas l'historique du LLM."""
+    with verrou:
+        yield from flux
 
 
 def lecteur_audio(file_audio: "queue.Queue", sample_rate: int) -> None:
@@ -113,6 +125,7 @@ def construire_routes_directes(
     weather_client: WeatherClient | None,
     timer_manager: TimerManager,
     alertes_client: AlertesMeteoClient | None,
+    origine: str | None = None,
 ) -> list[tuple[Callable[[str], list[dict] | None], Callable[[str, dict], str]]]:
     """Construit, dans l'ordre de priorité, les routes vers llm.ask_tool_direct
     (réponse déterministe pour un outil dont le résultat est déjà une phrase
@@ -123,7 +136,10 @@ def construire_routes_directes(
     L'ordre compte : les alertes météo doivent être vérifiées avant la météo,
     car "alerte météo" contient le mot "météo", qui matcherait sinon en
     premier. Ajouter une future intégration revient à ajouter une entrée ici,
-    dans construire_outils, et son propre `demande_X` dans son module."""
+    dans construire_outils, et son propre `demande_X` dans son module.
+
+    `origine` : zone du satellite qui parle (None = ce PC), pour que ses
+    minuteurs sonnent chez lui."""
 
     def route_alerte(question: str) -> list[dict] | None:
         return ALERT_TOOLS if demande_alerte(question) else None
@@ -149,7 +165,7 @@ def construire_routes_directes(
     if weather_client is not None:
         routes.append((route_meteo, weather_client.executer_outil))
     routes.append((route_date_heure, date_time.executer_outil))
-    routes.append((route_minuteur, timer_manager.executer_outil))
+    routes.append((route_minuteur, functools.partial(timer_manager.executer_outil, origine=origine)))
     if ha_client is not None:
         routes.append((route_domotique, ha_client.executer_outil))
     return routes
@@ -160,7 +176,8 @@ def construire_outils(
     weather_client: WeatherClient | None,
     timer_manager: TimerManager,
     alertes_client: AlertesMeteoClient | None,
-) -> tuple[list[dict], "callable"]:
+    origine: str | None = None,
+) -> tuple[list[dict], Callable[[str, dict], str]]:
     """Combine les outils disponibles (domotique + météo + alertes + minuteur
     + date/heure) et construit le dispatcher unique à passer à
     llm.ask_with_tools. Le dispatch est dérivé directement des noms d'outils
@@ -168,7 +185,7 @@ def construire_outils(
     ajouter une future intégration revient à ajouter une entrée dans
     `sources`, rien d'autre."""
     sources: list[tuple[list[dict], Callable[[str, dict], str]]] = [
-        (list(TIMER_TOOLS), timer_manager.executer_outil),
+        (list(TIMER_TOOLS), functools.partial(timer_manager.executer_outil, origine=origine)),
         (list(DATE_TIME_TOOLS), date_time.executer_outil),
     ]
     if ha_client is not None:
@@ -182,7 +199,8 @@ def construire_outils(
 
     noms = [outil["function"]["name"] for outil in tools]
     doublons = {nom for nom in noms if noms.count(nom) > 1}
-    assert not doublons, f"Noms d'outils en collision entre modules : {doublons}"
+    if doublons:
+        raise ValueError(f"Noms d'outils en collision entre modules : {doublons}")
 
     dispatch = {
         outil["function"]["name"]: executeur
@@ -206,7 +224,7 @@ def choisir_reponse(
     on_tool_call: Callable[[], None] | None = None,
 ) -> Iterator[str]:
     """Route une question vers ask_tool_direct (routes directes prioritaires,
-    voir construire_routes_directes) ou ask_with_tools/ask_stream en repli.
+    voir construire_routes_directes) ou ask_with_tools en repli.
 
     Partagée entre la boucle micro locale et satellite_api.py, pour que les
     deux parlent au même Jarvis (mêmes outils, même historique de
@@ -217,11 +235,9 @@ def choisir_reponse(
             return llm.ask_tool_direct(
                 question, tools=tools, tool_executor=tool_executor, on_tool_call=on_tool_call
             )
-    if tools_disponibles:
-        return llm.ask_with_tools(
-            question, tools=tools_disponibles, tool_executor=executer_outil, on_tool_call=on_tool_call
-        )
-    return llm.ask_stream(question)
+    return llm.ask_with_tools(
+        question, tools=tools_disponibles, tool_executor=executer_outil, on_tool_call=on_tool_call
+    )
 
 
 def main() -> None:
@@ -273,25 +289,35 @@ def main() -> None:
     else:
         print("⏸️  Alertes météo désactivées (alerts.enabled: false).")
 
-    # Le minuteur sonne dans son propre thread (threading.Timer), donc
-    # potentiellement pendant que Jarvis écoute ou parle déjà autre chose.
-    # play_audio() (audio_io.py) sérialise la lecture pour éviter que ça se
-    # chevauche avec une réponse en cours.
+    boite_notifications = satellite_api.BoiteNotifications()
     sonnerie_audio = generer_sonnerie(tts.sample_rate)
 
-    def annoncer_fin_minuteur(label: str) -> None:
+    def annoncer_fin_minuteur(label: str, origine: str | None) -> None:
+        """Appelé dans le thread du minuteur : sonne sur ce PC (play_audio
+        sérialise avec les réponses en cours) ou, si un satellite l'a demandé,
+        dépose le son dans sa boîte (il vient le chercher, voir satellite_api)."""
         message = f"Le minuteur {label} est terminé." if label else "Le minuteur est terminé."
-        print(f"\n🔔 Jarvis  : {message}\n")
-        play_audio(np.concatenate([sonnerie_audio, tts.synthesize(message)]), tts.sample_rate)
+        audio = np.concatenate([sonnerie_audio, tts.synthesize(message)])
+        if origine is None:
+            print(f"\n🔔 Jarvis  : {message}\n")
+            play_audio(audio, tts.sample_rate)
+        else:
+            print(f"\n🔔 Jarvis ({origine}) : {message}\n")
+            boite_notifications.deposer(origine, audio, tts.sample_rate)
 
     timer_manager = TimerManager(on_expire=annoncer_fin_minuteur)
 
-    routes_directes = construire_routes_directes(
-        ha_client, weather_client, timer_manager, alertes_client
-    )
-    tools_disponibles, executer_outil = construire_outils(
-        ha_client, weather_client, timer_manager, alertes_client
-    )
+    def construire_pile(origine: str | None):
+        """Routes directes + outils du LLM, liés à l'appareil qui parle."""
+        routes = construire_routes_directes(
+            ha_client, weather_client, timer_manager, alertes_client, origine
+        )
+        outils, executeur = construire_outils(
+            ha_client, weather_client, timer_manager, alertes_client, origine
+        )
+        return routes, outils, executeur
+
+    routes_directes, tools_disponibles, executer_outil = construire_pile(None)
 
     if config.DASHBOARD_ENABLED:
         dashboard_url = dashboard.demarrer(config.DASHBOARD_PORT)
@@ -301,18 +327,34 @@ def main() -> None:
 
     llm = LanguageModel(system_prompt=construire_system_prompt(ha_client))
 
-    def repondre_flux(question: str) -> Iterator[str]:
-        """Passée telle quelle à satellite_api.demarrer : un satellite envoie
-        une question (transcrite côté serveur, voir satellite_api.py) et
-        reçoit la réponse phrase par phrase — on renvoie donc le flux du LLM
-        tel quel, la synthèse et l'envoi sont gérés côté satellite_api."""
-        return choisir_reponse(question, llm, routes_directes, tools_disponibles, executer_outil)
+    def prechauffer_llm() -> None:
+        try:
+            llm.warm_up()
+        except Exception as exc:  # noqa: BLE001 - Ollama arrêté : la 1re question échouera de toute façon
+            print(f"⚠️  Ollama injoignable ({exc!r}) : lance-le, puis relance Jarvis.")
+
+    threading.Thread(target=prechauffer_llm, daemon=True).start()
+
+    # Un seul tour de conversation à la fois (micro local et satellites
+    # partagent le même historique LLM).
+    verrou_conversation = threading.Lock()
+
+    def repondre_flux(question: str, zone: str) -> Iterator[str]:
+        """Passée à satellite_api.demarrer : la réponse du LLM, phrase par
+        phrase ; la synthèse et l'envoi sont gérés côté satellite_api."""
+        routes, outils, executeur = construire_pile(zone)
+        return sous_verrou(
+            verrou_conversation, choisir_reponse(question, llm, routes, outils, executeur)
+        )
 
     if config.SATELLITE_ENABLED:
-        if not config.SATELLITE_API_KEY:
-            print("⚠️  API satellite désactivée : satellite.api_key manquant dans config.yml.")
+        if len(config.SATELLITE_API_KEY) < satellite_api.CLE_API_LONGUEUR_MIN:
+            print(
+                "⚠️  API satellite désactivée : satellite.api_key manquant ou trop courte "
+                f"(min. {satellite_api.CLE_API_LONGUEUR_MIN} caractères, voir generate_api_key.py)."
+            )
         else:
-            url_satellite = satellite_api.demarrer(stt, tts, repondre_flux)
+            url_satellite = satellite_api.demarrer(stt, tts, repondre_flux, boite_notifications)
             print(f"📡 API satellite : {url_satellite}")
     else:
         print("⏸️  API satellite désactivée (satellite.enabled: false).")
@@ -325,12 +367,8 @@ def main() -> None:
         phrase: tts.synthesize(phrase) for phrase in config.LLM_TOOL_CALL_PHRASES
     }
 
-    # Domotique/météo/alertes/dashboard sont déjà annoncés individuellement
-    # ci-dessus (avec plus de détail, ex: la ville pour la météo) — pas la
-    # peine de les répéter. Open WebUI et la vérification de version n'ont
-    # en revanche encore jamais été mentionnés ici : main.py ne les démarre
-    # pas lui-même (c'est le rôle de launch.py), mais afficher leur état
-    # évite de laisser croire qu'ils sont oubliés.
+    # Open WebUI et la vérification de version sont gérés par launch.py :
+    # on n'affiche que leur état.
     print(f"{'✅' if config.OPEN_WEBUI_ENABLED else '⏸️ '} Open WebUI (géré par launch.py)")
     print(f"{'✅' if config.UPDATE_CHECK_ENABLED else '⏸️ '} Vérification de version (gérée par launch.py)\n")
 
@@ -349,7 +387,7 @@ def main() -> None:
             # salutation parlée — pas après. Comme ça, si tu enchaînes ta
             # question directement après "Hey Jarvis" sans attendre "Oui,
             # comment puis-je vous aider ?", elle est quand même captée.
-            resultat_ecoute: dict = {}
+            resultat_ecoute = {"audio": np.zeros(0, dtype=np.float32)}
 
             def _ecouter_pendant_la_salutation() -> None:
                 resultat_ecoute["audio"] = record_until_silence(vad, debug=args.debug_audio)
@@ -418,13 +456,24 @@ def main() -> None:
 
                 t_reponse = time.time()
                 print("Jarvis  : ", end="", flush=True)
-                fragments = choisir_reponse(
-                    question, llm, routes_directes, tools_disponibles, executer_outil, on_tool_call
-                )
-                parler_en_flux(fragments, tts, file_audio)
+                echec = False
+                try:
+                    with verrou_conversation:
+                        fragments = choisir_reponse(
+                            question, llm, routes_directes, tools_disponibles, executer_outil,
+                            on_tool_call,
+                        )
+                        parler_en_flux(fragments, tts, file_audio)
+                except Exception as exc:  # noqa: BLE001 - Ollama arrêté, outil en erreur...
+                    print(f"\n[erreur] {exc!r}")
+                    echec = True
+                    file_audio.put(None)  # sans effet si parler_en_flux l'a déjà posée
                 print()
 
                 thread_lecture.join()
+                if echec:
+                    play_audio(tts.synthesize(ERREUR_VOCALE), tts.sample_rate)
+                    break
                 dashboard.enregistrer_latence("reponse", time.time() - t_reponse)
                 print("👂 (je t'écoute encore — dis \"merci Jarvis\" pour terminer)\n")
 
@@ -437,6 +486,7 @@ def main() -> None:
             break
         except Exception as exc:  # noqa: BLE001 - on veut survivre à une erreur ponctuelle
             print(f"[erreur] {exc!r} — je continue à écouter.\n")
+            time.sleep(PAUSE_APRES_ERREUR_S)
 
 
 if __name__ == "__main__":

@@ -2,10 +2,11 @@
 
 Lance les tests avec :
 ```
-pip install pytest
+pip install -r requirements.txt pytest
 pytest tests/
 ```
 
-Ces tests ciblent la logique pure (regex, dispatch d'outils) — pas le micro,
-le LLM ni Piper, qui nécessitent du matériel/des services externes et sont
-plutôt à valider manuellement (voir README principal).
+Logique pure (routage, outils, minuteurs, flux de phrases, API satellite via
+TestClient) et VAD réel (modèle ONNX local) — pas le micro, le LLM ni Piper,
+à valider manuellement. Les tests du client (`satellite/tests/`) se lancent
+séparément : `pytest satellite/tests/` (voir satellite/README.md).

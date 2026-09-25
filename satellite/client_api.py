@@ -1,6 +1,7 @@
 """Client HTTP vers l'API satellite du serveur (voir server/satellite_api.py) :
 envoie l'audio enregistré, reçoit la réponse (déjà synthétisée par Piper côté
-serveur) phrase par phrase, chacune à jouer dès qu'elle arrive."""
+serveur) phrase par phrase, chacune à jouer dès qu'elle arrive, et récupère
+les sons en attente (minuteur terminé...)."""
 import io
 import struct
 import time
@@ -11,6 +12,8 @@ import numpy as np
 import requests
 
 import config
+
+TAILLE_MAX_TRAME = 16 * 1024 * 1024  # ~6 min de voix Piper : au-delà, le flux est corrompu
 
 
 def _audio_vers_wav(audio: np.ndarray, sample_rate: int) -> bytes:
@@ -48,6 +51,10 @@ def _extraire_trames(morceaux: Iterable[bytes]) -> Iterator[bytes]:
         tampon.extend(morceau)
         while len(tampon) >= 4:
             (taille,) = struct.unpack(">I", tampon[:4])
+            if taille > TAILLE_MAX_TRAME:
+                raise requests.exceptions.ChunkedEncodingError(
+                    f"Trame de {taille} octets refusée : flux corrompu."
+                )
             if len(tampon) < 4 + taille:
                 break
             yield bytes(tampon[4 : 4 + taille])
@@ -57,6 +64,23 @@ def _extraire_trames(morceaux: Iterable[bytes]) -> Iterator[bytes]:
         raise requests.exceptions.ChunkedEncodingError(
             "Flux interrompu au milieu d'une phrase de la réponse."
         )
+
+
+def _entetes() -> dict[str, str]:
+    return {"X-API-Key": config.SERVER_API_KEY, "X-Zone": config.ZONE_NAME or "satellite"}
+
+
+def recuperer_notifications() -> list[tuple[np.ndarray, int]]:
+    """Sons mis de côté par le serveur pour ce satellite (ex: minuteur
+    terminé), à jouer tout de suite ; vide s'il n'y en a pas. Lève
+    requests.RequestException si le serveur est injoignable."""
+    reponse = requests.get(
+        config.SERVER_URL.rsplit("/", 1)[0] + "/notifications",
+        headers=_entetes(),
+        timeout=config.SERVER_TIMEOUT,
+    )
+    reponse.raise_for_status()
+    return [_wav_vers_audio(wav) for wav in _extraire_trames([reponse.content])]
 
 
 def demander(
@@ -90,8 +114,8 @@ def demander(
     instant_envoi = time.perf_counter()
     with requests.post(
         config.SERVER_URL,
-        headers={"X-API-Key": config.SERVER_API_KEY},
-        files={"audio": ("question.wav", wav, "audio/wav")},
+        headers={**_entetes(), "Content-Type": "audio/wav"},
+        data=wav,
         timeout=config.SERVER_TIMEOUT,
         stream=True,
     ) as reponse:

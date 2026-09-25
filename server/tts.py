@@ -1,8 +1,8 @@
 """Synthèse vocale (Text-to-Speech) avec Piper (OHF-Voice/piper1-gpl, GPL-3.0).
 
-Piper tourne bien sur CPU (utile aussi pour tes futurs satellites Raspberry
-Pi), n'embarque aucun filigrane ni mécanisme de traçabilité, et streame
-l'audio par petits blocs — pratique pour le pipeline LLM->TTS en streaming.
+Piper tourne bien sur CPU, n'embarque aucun filigrane ni mécanisme de
+traçabilité, et streame l'audio par petits blocs — pratique pour le pipeline
+LLM->TTS en streaming.
 """
 import threading
 
@@ -25,9 +25,7 @@ class TextToSpeech:
         # choisir la voix désirée parmi celles d'un modèle multi-locuteurs
         # (ex: mls, qui en propose 125).
         self._syn_config = SynthesisConfig(speaker_id=speaker_id) if speaker_id is not None else None
-        # Valeur par défaut ; mise à jour dès le premier bloc audio reçu
-        # (fiable quelle que soit la version de piper-tts installée).
-        self.sample_rate = 22050
+        self.sample_rate = self.voice.config.sample_rate
         # Un seul objet TextToSpeech est partagé entre le thread principal
         # (réponses en streaming) et les threads de fond (minuteurs, alertes
         # météo proactives, voir main.py) : sans ce verrou, deux synthèses

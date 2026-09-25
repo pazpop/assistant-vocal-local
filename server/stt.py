@@ -1,6 +1,7 @@
 """Reconnaissance vocale (Speech-to-Text) avec faster-whisper."""
 import os
 import sys
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -33,6 +34,8 @@ class SpeechToText:
         compute_type: str = config.STT_COMPUTE_TYPE,
     ):
         self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
+        # Micro local et satellites transcrivent depuis des threads différents.
+        self._verrou = threading.Lock()
 
     def transcribe(
         self,
@@ -43,10 +46,12 @@ class SpeechToText:
         if audio.size == 0:
             return ""
 
-        segments, _ = self.model.transcribe(
-            audio,
-            language=language,
-            beam_size=5,
-            vad_filter=True,  # filtre les silences internes, évite les hallucinations
-        )
-        return " ".join(segment.text.strip() for segment in segments).strip()
+        with self._verrou:
+            segments, _ = self.model.transcribe(
+                audio,
+                language=language,
+                beam_size=5,
+                vad_filter=True,  # filtre les silences internes, évite les hallucinations
+            )
+            # `segments` est un générateur paresseux : le consommer sous verrou.
+            return " ".join(segment.text.strip() for segment in segments).strip()

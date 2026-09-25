@@ -164,10 +164,12 @@ try {
     if (-not (Test-Path ".venv")) {
         Write-Host "Creation du venv (Python 3.11)..."
         py -3.11 -m venv .venv
+        if ($LASTEXITCODE -ne 0) { throw "Creation du venv impossible (Python 3.11 installe ? ouvre un nouveau terminal apres l'installation de Python)." }
     }
 
     Write-Host "Installation des dependances Python (peut prendre plusieurs minutes)..."
     & .\.venv\Scripts\pip.exe install -r requirements.txt
+    if ($LASTEXITCODE -ne 0) { throw "L'installation des dependances Python a echoue (voir l'erreur pip ci-dessus)." }
     Write-Host "Rappel : sur GPU AMD ou sans GPU, voir 'GPU AMD' dans ARCHITECTURE.md (les paquets nvidia-cublas-cu12/nvidia-cudnn-cu12 installes ci-dessus sont alors inutiles, sans consequence sur le fonctionnement)."
 
     if (-not (Test-Path "config.yml")) {
@@ -191,12 +193,14 @@ try {
 
     Write-Host "Telechargement du modele $ModeleOllama (~4,7 Go si pas deja present, peut prendre du temps)..."
     ollama pull $ModeleOllama
+    if ($LASTEXITCODE -ne 0) { throw "Le telechargement du modele $ModeleOllama a echoue (reseau ? espace disque ?)." }
 
     if (-not (Test-Path "models\piper\fr_FR-tom-medium.onnx")) {
         Write-Host "Telechargement de la voix Piper..."
         Push-Location "models\piper"
         try {
             & "..\..\.venv\Scripts\python.exe" -m piper.download_voices fr_FR-tom-medium
+            if ($LASTEXITCODE -ne 0) { throw "Le telechargement de la voix Piper a echoue." }
         } finally {
             Pop-Location
         }

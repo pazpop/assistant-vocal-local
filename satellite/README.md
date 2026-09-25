@@ -7,14 +7,14 @@ fait tourner Jarvis, via `server/satellite_api.py` — voir
 
 ## Prérequis
 
-- Matériel choisi, **Raspberry Pi OS 64 bits** installé (les dépendances
-  Python `onnxruntime`/`tflite-runtime` n'ont de paquets prêts à l'emploi
-  que pour cette architecture), pilotes du HAT micro/haut-parleur
+- Matériel choisi, **Raspberry Pi OS 64 bits** installé (`onnxruntime` n'a de
+  paquet prêt à l'emploi que pour cette architecture), pilotes du HAT micro/haut-parleur
   installés — voir [RASPBERRY_PI_SETUP.md](RASPBERRY_PI_SETUP.md) si ce
   n'est pas déjà fait.
-- Python 3.11 (Raspberry Pi OS Bookworm) ou 3.13 (Trixie), déjà présent :
-  `python3 --version`. L'installation ci-dessous fonctionne sur les deux
-  (openwakeword y est installé sans `tflite-runtime`, indisponible en 3.13).
+- Python 3.12 ou plus (Raspberry Pi OS Trixie : 3.13), déjà présent :
+  `python3 --version`. Les versions figées de `requirements.txt` (scipy...)
+  n'existent pas en 3.11 ; openwakeword est installé sans `tflite-runtime`,
+  indisponible en 3.13.
 - L'API satellite activée côté serveur (`satellite.enabled: true` dans le
   `config.yml` du PC, avec une `api_key` définie) — voir
   [ARCHITECTURE.md](../ARCHITECTURE.md#api-satellite).
@@ -50,7 +50,10 @@ python main.py
 ```
 
 Dis "Hey Jarvis" — un bip confirme que le satellite écoute, puis joue la
-réponse une fois reçue. Ctrl+C pour quitter.
+réponse au fil de son arrivée. Après chaque question, il affiche
+l'enregistrement, l'envoi, la transcription et le délai avant le 1er son
+reçu. Un thread de fond joue aussi les minuteurs terminés que tu as demandés
+à ce satellite (`zone.name` doit être unique). Ctrl+C pour quitter.
 
 `python main.py --debug-audio` affiche le score du mot-clé et le niveau
 audio en direct, pour calibrer `wake_word.threshold`/`audio.silence_threshold`
@@ -113,6 +116,8 @@ périphérique audio au démarrage affiche `[erreur] ...` et réessaie tout
 seul au tour suivant, sans faire planter le service.
 
 ## Tests
+
+Depuis la racine du dépôt :
 
 ```bash
 pip install pytest

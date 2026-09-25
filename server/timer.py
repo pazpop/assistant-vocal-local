@@ -155,11 +155,11 @@ def generer_sonnerie(
 class TimerManager:
     """Dispatch + exécution des minuteurs demandés par le LLM."""
 
-    def __init__(self, on_expire: Callable[[str], None]):
-        """`on_expire(label)` est appelé (dans un thread à part) quand un
-        minuteur sonne — à l'appelant (main.py) de s'en servir pour parler
-        et jouer un son, avec le label éventuel du minuteur ("pour les
-        pâtes", ou "" si aucun n'a été précisé)."""
+    def __init__(self, on_expire: Callable[[str, str | None], None]):
+        """`on_expire(label, origine)` est appelé (dans un thread à part)
+        quand un minuteur sonne — à l'appelant (main.py) de parler et jouer
+        un son au bon endroit : `label` = "pour les pâtes" (ou "" si aucun),
+        `origine` = zone du satellite qui l'a demandé (None = ce PC)."""
         self._on_expire = on_expire
         # Numéros attribués une seule fois, jamais réutilisés : même si le
         # minuteur 1 sonne avant le minuteur 2, celui-ci reste "minuteur 2"
@@ -168,7 +168,7 @@ class TimerManager:
         self._minuteries: dict[int, dict] = {}
         self._verrou = threading.Lock()
 
-    def demarrer(self, secondes: int, label: str = "") -> str:
+    def demarrer(self, secondes: int, label: str = "", origine: str | None = None) -> str:
         if not isinstance(secondes, (int, float)) or not (
             DUREE_MIN_SECONDES <= secondes <= DUREE_MAX_SECONDES
         ):
@@ -182,7 +182,7 @@ class TimerManager:
         def _a_expiration() -> None:
             with self._verrou:
                 self._minuteries.pop(numero, None)
-            self._on_expire(label)
+            self._on_expire(label, origine)
 
         minuterie = threading.Timer(secondes, _a_expiration)
         minuterie.daemon = True
@@ -257,11 +257,12 @@ class TimerManager:
         nom = f"minuteur {numero}{f' {label}' if label else ''}"
         return f"J'ai arrêté le {nom}."
 
-    def executer_outil(self, nom: str, arguments: dict) -> str:
-        """Dispatch pour le tool-calling du LLM (même patron que les autres clients)."""
+    def executer_outil(self, nom: str, arguments: dict, origine: str | None = None) -> str:
+        """Dispatch pour le tool-calling du LLM (même patron que les autres
+        clients). `origine` : voir __init__ (seul démarrer_minuteur s'en sert)."""
         try:
             if nom == "demarrer_minuteur":
-                return self.demarrer(arguments["secondes"], arguments.get("label", ""))
+                return self.demarrer(arguments["secondes"], arguments.get("label", ""), origine)
             if nom == "lister_minuteurs":
                 return self.lister(arguments.get("numero"))
             if nom == "annuler_minuteur":

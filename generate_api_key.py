@@ -20,6 +20,8 @@ def main() -> None:
         help="Nombre d'octets aléatoires (défaut 16, soit une clé hexadécimale de 32 caractères).",
     )
     args = parser.parse_args()
+    if args.longueur < 16:
+        parser.error("--longueur doit être au moins 16 (clé de 128 bits minimum).")
 
     print(secrets.token_hex(args.longueur))
 

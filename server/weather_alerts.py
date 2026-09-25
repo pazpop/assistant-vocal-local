@@ -6,8 +6,8 @@ Chaque région a sa propre URL de flux (trouve la tienne sur la page
 ci-dessus). Privilégie l'URL se terminant par "_f.xml" (français) plutôt que
 "_e.xml" (anglais), pour rester cohérent avec les réponses parlées de Jarvis.
 
-Désactivé si `alerts.feed_url` est vide dans config.yml (pas de région
-configurée = pas de fonctionnalité, comme Home Assistant sans jeton).
+Avec `alerts.enabled: true`, un `alerts.feed_url` vide fait échouer
+l'activation avec une erreur de configuration explicite.
 """
 import re
 import threading

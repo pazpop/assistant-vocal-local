@@ -64,3 +64,30 @@ def test_wav_vers_audio_preserve_une_frequence_differente():
     wav = _audio_vers_wav(np.zeros(100, dtype=np.float32), sample_rate=44100)
     _audio, sample_rate = _wav_vers_audio(wav)
     assert sample_rate == 44100
+
+
+def test_extraire_trames_refuse_une_taille_absurde():
+    """Un flux corrompu (ou un serveur détourné en HTTP clair) ne doit pas
+    faire attendre/allouer 4 Go au Pi."""
+    from client_api import TAILLE_MAX_TRAME
+
+    with pytest.raises(requests.exceptions.ChunkedEncodingError):
+        list(_extraire_trames([struct.pack(">I", TAILLE_MAX_TRAME + 1)]))
+
+
+def test_recuperer_notifications_decode_les_sons_en_attente():
+    from unittest.mock import Mock, patch
+
+    import client_api
+
+    wav = _audio_vers_wav(np.full(8, 0.5, dtype=np.float32), sample_rate=22050)
+    reponse = Mock(content=_trame(wav) + _trame(wav))
+
+    with patch("client_api.requests.get", return_value=reponse) as mock_get, patch(
+        "client_api.config.SERVER_URL", "http://pc:8791/assistant"
+    ):
+        sons = client_api.recuperer_notifications()
+
+    assert [sr for _, sr in sons] == [22050, 22050]
+    assert mock_get.call_args[0][0] == "http://pc:8791/notifications"
+    assert "X-Zone" in mock_get.call_args[1]["headers"]

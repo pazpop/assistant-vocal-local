@@ -5,10 +5,13 @@ Version minimale (voir ROADMAP.md > Satellites Raspberry Pi) : un tour par
 mot-clé, pas de conversation continue ni de domotique/météo/minuteur en
 local — tout le traitement (STT, LLM, outils, TTS) reste sur le serveur, via
 server/satellite_api.py. Ce client ne fait qu'enregistrer, transmettre et
-jouer la réponse.
+jouer la réponse, et joue les sons que le serveur lui met de côté (minuteur
+terminé) : un thread de fond les réclame toutes les INTERVALLE_NOTIFICATIONS_S.
 """
 import argparse
 import sys
+import threading
+import time
 
 import requests
 
@@ -18,6 +21,9 @@ import config
 from audio_io import generer_bip, play_audio, record_until_silence
 from wakeword import WakeWordDetector
 
+INTERVALLE_NOTIFICATIONS_S = 3
+PAUSE_APRES_ERREUR_S = 2  # évite de tourner à 100 % CPU si l'erreur persiste (micro débranché...)
+
 
 def afficher_etape(etape: str, **infos: float) -> None:
     """Affiche, au fil de l'échange, chaque étape avec son temps (voir
@@ -26,6 +32,19 @@ def afficher_etape(etape: str, **infos: float) -> None:
     ligne = chrono.formater_etape(etape, **infos)
     if ligne:
         print(ligne, flush=True)
+
+
+def jouer_les_notifications() -> None:
+    """Tourne dans un thread de fond : joue les sons en attente côté serveur.
+    Serveur injoignable = on réessaie au tour suivant, sans bruit (la boucle
+    principale signale déjà les échecs d'une vraie question)."""
+    while True:
+        try:
+            for audio, sample_rate in client_api.recuperer_notifications():
+                play_audio(audio, sample_rate)
+        except Exception:  # noqa: BLE001 - réseau, lecture audio : rien de grave, on réessaie
+            pass
+        time.sleep(INTERVALLE_NOTIFICATIONS_S)
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,6 +74,8 @@ def main() -> None:
     print("Chargement du modèle de mot-clé (ça peut prendre quelques secondes)...")
     detector = WakeWordDetector()
     bip = generer_bip(config.SAMPLE_RATE)
+
+    threading.Thread(target=jouer_les_notifications, daemon=True).start()
 
     zone = f" ({config.ZONE_NAME})" if config.ZONE_NAME else ""
     print(f"Satellite prêt{zone}. Dis '{config.WAKE_WORD_DISPLAY_NAME}' pour commencer.")
@@ -111,6 +132,7 @@ def main() -> None:
             break
         except Exception as exc:  # noqa: BLE001 - on veut survivre à une erreur ponctuelle
             print(f"[erreur] {exc!r} — je continue à écouter.\n")
+            time.sleep(PAUSE_APRES_ERREUR_S)
 
 
 if __name__ == "__main__":

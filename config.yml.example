@@ -60,6 +60,10 @@ stt:
 llm:
   # Modèle Ollama à utiliser (doit être déjà récupéré via `ollama pull`).
   model: qwen2.5:7b
+  # Durée pendant laquelle Ollama garde le modèle en VRAM après la dernière
+  # question (défaut d'Ollama : 5 min ; ensuite la question suivante paie le
+  # rechargement). "-1" = pour toujours.
+  keep_alive: "30m"
 
 tts:
   # Chemin vers la voix Piper, relatif à la racine du projet. "tom" est une
@@ -88,14 +92,13 @@ location:
   timezone: "America/Toronto"
 
 weather:
-  # Désactive complètement la météo (obtenir_meteo) si tu ne veux pas de
-  # cette fonctionnalité. Indépendant de la date/heure (date_time.py), qui ne
-  # partage que la localisation ci-dessus, pas ce commutateur.
+  # Passe à true pour activer la météo (obtenir_meteo). Indépendant de la
+  # date/heure (date_time.py), qui ne partage que la localisation ci-dessus.
   enabled: false
 
 alerts:
-  # Désactive complètement les alertes météo. Mets aussi "feed_url"
-  # ci-dessous une fois que tu veux vraiment l'activer.
+  # Passe à true pour activer les alertes météo (renseigne aussi "feed_url"
+  # ci-dessous).
   enabled: false
   # URL du flux Atom d'alertes météo publiques (Environnement Canada, gratuit,
   # sans compte) pour ta région. Trouve la tienne ici :
@@ -119,8 +122,8 @@ alerts:
   quiet_hours_end: "08:00"
 
 home_assistant:
-  # Désactive complètement la domotique. Configure aussi "base_url" et
-  # "token" ci-dessous une fois que tu veux vraiment l'activer.
+  # Passe à true pour activer la domotique (configure aussi "base_url" et
+  # "token" ci-dessous).
   enabled: false
   # Adresse de ta VM/machine Home Assistant. Utilise son IP (idéalement
   # fixe/réservée dans ton routeur), PAS "homeassistant.local" : la
@@ -143,8 +146,7 @@ home_assistant:
     # light.salon_lumiere_salon_gauche: "lumière salon gauche"
 
 dashboard:
-  # Passe à false pour désactiver complètement le panneau (aucun serveur
-  # HTTP lancé) si tu ne t'en sers pas.
+  # Passe à true pour lancer le panneau de ressources (serveur HTTP local).
   enabled: false
   # Port du panneau de ressources local (CPU/RAM/VRAM/latences du pipeline),
   # accessible uniquement en local à http://127.0.0.1:<port>/ — l'URL exacte
@@ -180,17 +182,15 @@ open_webui:
 
 update_check:
   # launch.py compare le fichier VERSION local à celui du dépôt GitHub au
-  # démarrage (requête réseau courte, silencieuse en cas d'échec) et
-  # affiche juste un avertissement si une version plus récente existe — ne
-  # met jamais rien à jour automatiquement. C'est le seul appel réseau que
-  # launch.py fait lui-même.
+  # démarrage (requête courte, silencieuse en cas d'échec) et affiche si le
+  # code est à jour ou non — ne met jamais rien à jour.
   enabled: false
 
 satellite:
-  # Active l'API réseau pour un futur client satellite (Raspberry Pi, voir
-  # ROADMAP.md). Écoute sur "host" ci-dessous (0.0.0.0 par défaut, pas
-  # 127.0.0.1) pour être joignable depuis un autre appareil du réseau local
-  # — reste désactivée tant qu'aucune clé API n'est renseignée ci-dessous.
+  # Active l'API réseau pour les satellites (Raspberry Pi, voir
+  # ARCHITECTURE.md#api-satellite). Écoute sur "host" ci-dessous (0.0.0.0 par
+  # défaut) pour être joignable depuis le réseau local, en HTTP clair : à
+  # réserver à un réseau de confiance. Refusée sans clé API assez longue.
   enabled: false
   # "0.0.0.0" = joignable depuis tout le réseau local ; restreins à une IP
   # précise si ta machine en a plusieurs et que tu veux limiter l'exposition.
@@ -198,6 +198,6 @@ satellite:
   port: 8791
   # Jeton partagé, à coller aussi dans la config du satellite (identique des
   # deux côtés). Obligatoire : sans clé (valeur vide), l'API refuse toute
-  # requête plutôt que d'accepter n'importe quel appareil du réseau. Génère
-  # une valeur aléatoire avec : python generate_api_key.py
+  # requête plutôt que d'accepter n'importe quel appareil du réseau. 16
+  # caractères minimum. Génère une valeur avec : python generate_api_key.py
   api_key: ""

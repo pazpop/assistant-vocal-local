@@ -2,7 +2,10 @@ name: Tests
 
 # Valide que le code Python tourne sur Linux (le poste de dev habituel est
 # Windows) — pas de GPU sur ce runner, donc seul le chemin stt.device: cpu
-# est réellement couvert, jamais stt.device: cuda (voir ARCHITECTURE.md).
+# est réellement couvert, jamais stt.device: cuda (voir ROADMAP.md).
+
+permissions:
+  contents: read
 
 on:
   push:
@@ -36,19 +39,36 @@ jobs:
       - name: Lance les tests (serveur)
         run: pytest tests/ -v
 
-      # server/ et satellite/ définissent chacun un module "config"/
-      # "audio_io" : les lancer dans le même process pytest ferait
-      # retourner le mauvais module à l'un des deux (sys.modules est un
-      # cache global par nom d'import) — d'où deux invocations séparées.
+  # Job séparé : le satellite cible Python 3.13 (Raspberry Pi OS Trixie) et
+  # ses dépendances figées (scipy...) n'existent pas en 3.11. Venv distinct
+  # aussi, pour détecter un paquet oublié dans satellite/requirements.txt.
+  # server/ et satellite/ définissent chacun un module "config"/"audio_io" :
+  # deux invocations pytest séparées (sys.modules est un cache global).
+  pytest-satellite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Dépendance système audio (PortAudio)
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+
       - name: Installe les dépendances (satellite)
-        run: pip install -r satellite/requirements.txt
+        run: |
+          pip install --no-deps openwakeword==0.6.0
+          pip install -r satellite/requirements.txt pytest
 
       - name: Lance les tests (satellite)
         run: pytest satellite/tests/ -v
 
   bump-version:
     name: Met à jour VERSION
-    needs: pytest
+    needs: [pytest, pytest-satellite]
+    # Un seul bump à la fois : deux pushes rapprochés feraient échouer git push.
+    concurrency: bump-version
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

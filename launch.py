@@ -2,12 +2,13 @@
 Docker : chaque composant tourne dans son propre venv, comme processus
 séparé de ce script.
 
-Ne démarre PAS Ollama : c'est un service (Windows) ou daemon (Linux/macOS)
-qui tourne déjà en arrière-plan une fois installé — voir README.md. Ce
-script vérifie seulement qu'il répond, avec un message clair sinon.
+Ne démarre PAS Ollama : c'est un service Windows qui tourne déjà en
+arrière-plan une fois installé — voir README.md. Ce script vérifie
+seulement qu'il répond, avec un message clair sinon. Windows uniquement.
 """
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -59,11 +60,13 @@ def rafraichir_path() -> None:
         try:
             with winreg.OpenKey(hive, sous_cle) as cle:
                 valeur, _ = winreg.QueryValueEx(cle, "Path")
-                morceaux.append(valeur)
+                # REG_EXPAND_SZ : "%SystemRoot%\system32" doit être développé.
+                morceaux.append(os.path.expandvars(valeur))
         except OSError:
             pass
     if morceaux:
-        os.environ["PATH"] = ";".join(morceaux)
+        # On garde les entrées du PATH courant (ex: venv activé) en plus du registre.
+        os.environ["PATH"] = ";".join(morceaux + [os.environ.get("PATH", "")])
 
 
 def ollama_est_joignable() -> bool:
@@ -103,9 +106,9 @@ def lire_config() -> tuple[bool, str, int, str, bool]:
 def verifier_version() -> None:
     """Avertit si une version plus récente existe sur GitHub (comparaison
     du fichier VERSION local à celui du dépôt) — ne met jamais rien à jour
-    automatiquement, juste un avertissement (voir ROADMAP.md). Ne bloque
+    automatiquement, juste un message (voir ARCHITECTURE.md). Ne bloque
     jamais le démarrage : timeout court, silencieux en cas d'échec réseau.
-    Pas basé sur Git (installer.ps1 n'en dépend pas, voir ARCHITECTURE.md)."""
+    Pas basé sur Git (install.ps1 n'en dépend pas, voir ARCHITECTURE.md)."""
     if not VERSION_LOCALE_PATH.exists():
         return
     version_locale = VERSION_LOCALE_PATH.read_text(encoding="utf-8").strip()
@@ -114,8 +117,8 @@ def verifier_version() -> None:
             version_distante = reponse.read().decode("utf-8").strip()
     except (urllib.error.URLError, OSError):
         return
-    if not version_distante:
-        return
+    if not re.fullmatch(r"\d+(\.\d+)*", version_distante):
+        return  # réponse inattendue : jamais affichée telle quelle dans le terminal
     if version_distante == version_locale:
         print(f"✅ Code à jour (version {version_locale}).")
     else:
@@ -303,6 +306,12 @@ def main() -> None:
     if verif_version:
         verifier_version()
 
+    # Purge (et sa confirmation interactive) AVANT de lancer Jarvis, pour que
+    # la question ne se mélange pas à ses logs.
+    if args.purge_webui_on_start and webui_actif and OPENWEBUI_EXE.exists():
+        print("🧹 Purge complète d'Open WebUI avant démarrage (--purge-webui-on-start)...")
+        purger_donnees_open_webui(demander_confirmation=not args.yes)
+
     processus: list[tuple[subprocess.Popen, str]] = []
 
     jarvis = subprocess.Popen([str(SERVER_PYTHON), "main.py"], cwd=SERVER_DIR)
@@ -319,10 +328,6 @@ def main() -> None:
             "continue sans Open WebUI."
         )
     else:
-        if args.purge_webui_on_start:
-            print("🧹 Purge complète d'Open WebUI avant démarrage (--purge-webui-on-start)...")
-            purger_donnees_open_webui(demander_confirmation=not args.yes)
-
         env = os.environ.copy()
         # Par défaut, Open WebUI écrit sa base (comptes, historique de chat)
         # dans site-packages/, à l'intérieur du venv — perdue si le venv est

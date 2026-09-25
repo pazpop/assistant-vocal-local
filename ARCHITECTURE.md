@@ -27,6 +27,7 @@ flowchart LR
     SAT(["📡 Satellite<br/>Raspberry Pi, optionnel"]) <-.->|WAV, réseau local| API["🔌 API satellite<br/>0.0.0.0:8791"]
     API --> STT
     LLM --> API
+    TTS --> API
 ```
 
 | Composant | Technologie | Rôle |
@@ -43,7 +44,7 @@ flowchart LR
 | Historique | `LanguageModel.history` (RAM, en process) | Contexte de la conversation en cours, jamais persisté |
 | Panneau de ressources | `http.server` (bibliothèque standard) | Suivi CPU/RAM/VRAM/latences, `127.0.0.1` uniquement |
 | Open WebUI | [Open WebUI](#open-webui) (optionnel, lancé par `launch.py`) | Interface web de conversation par-dessus Ollama, indépendante de Jarvis |
-| API satellite | [FastAPI](#api-satellite) (optionnelle, `server/satellite_api.py`) | Expose STT+LLM+TTS+domotique en un endpoint REST pour un futur client Raspberry Pi |
+| API satellite | [FastAPI](#api-satellite) (optionnelle, `server/satellite_api.py`) | Expose STT+LLM+TTS+outils en REST au client Raspberry Pi (`satellite/`) |
 
 ## Pourquoi ces choix ?
 
@@ -70,8 +71,7 @@ flowchart LR
   et l'appel LLM en cours : une vraie source de bugs de synchronisation.
   Limitation connue, pas un oubli.
 - **`server/dashboard.py` en `http.server` plutôt qu'un framework web** :
-  voir [Roadmap](ROADMAP.md) — pensé comme la première brique d'une future
-  API pour les satellites, pas comme un script à part à maintenir en plus.
+  aucune dépendance pour un simple panneau local.
 - **Pas de Docker** : envisagé puis écarté — le GPU passthrough sur Windows
   est plus fragile que le venv natif actuel,
   et une CI sans GPU ne validerait jamais le vrai chemin d'exécution.
@@ -102,18 +102,22 @@ assistant-vocal-local/
 │   ├── tts.py                       # Synthèse vocale (Piper)
 │   ├── home_assistant.py           # Client domotique local + outils LLM
 │   ├── dashboard.py                  # Panneau de ressources local (CPU/RAM/VRAM)
-│   └── satellite_api.py               # API réseau optionnelle pour un futur satellite (FastAPI)
+│   ├── phrases.py                     # Découpage du flux LLM en phrases
+│   └── satellite_api.py               # API réseau pour les satellites (FastAPI)
 ├── satellite/            # Client Raspberry Pi (mot-clé + micro + haut-parleur)
 │   ├── RASPBERRY_PI_SETUP.md # Matériel, OS, pilotes du HAT micro (avant le client)
 │   ├── main.py             # Point d'entrée : boucle mot-clé -> envoi -> lecture
 │   ├── config.py             # Config allégée (satellite/config.yml, pas config.yml racine)
-│   ├── wakeword.py             # Détection "Hey Jarvis" (openWakeWord, dupliqué de server/)
-│   ├── audio_io.py               # Capture micro (seuil RMS) + lecture haut-parleur
-│   └── client_api.py               # Appel HTTP vers server/satellite_api.py
+│   ├── wakeword.py             # Détection "Hey Jarvis" (openWakeWord, copie voulue de server/)
+│   ├── audio_io.py               # Capture micro (seuil RMS adaptatif) + lecture haut-parleur
+│   ├── client_api.py               # Appel HTTP vers server/satellite_api.py
+│   ├── chrono.py                     # Texte des temps par étape affichés après chaque question
+│   ├── config.yml.example, requirements.txt, README.md, tests/
 ├── models/                # Poids/voix téléchargés (ignoré par git, voir models/README.md)
 │   ├── piper/              # Voix Piper (.onnx + .onnx.json)
-│   └── whisper/             # Cache faster-whisper (rempli automatiquement)
-├── tests/                 # Tests pytest (logique pure, sans matériel)
+├── tests/                 # Tests pytest du serveur (satellite/tests/ pour le client)
+├── .github/workflows/tests.yml   # CI : tests serveur, tests satellite, bump de VERSION
+├── install.ps1, install.bat, launch.py, generate_api_key.py, VERSION
 ├── .venv/                 # Environnement virtuel (ignoré par git)
 ├── .gitignore
 ├── LICENSE
@@ -237,15 +241,15 @@ bloquante pour Jarvis. Un message s'affiche dans les deux cas (à jour ou
 en retard), pas seulement en cas de retard :
 
 ```
-✅ Code à jour (version 1.19).
+✅ Code à jour (version 1.x).
 ```
 ```
-⚠️  Nouvelle version disponible sur GitHub (locale : 1.19, distante : 1.22) — https://github.com/pazpop/assistant-vocal-local
+⚠️  Nouvelle version disponible sur GitHub (locale : 1.x, distante : 1.y) — https://github.com/pazpop/assistant-vocal-local
 ```
 
 **Ne met jamais rien à jour automatiquement** — `install.ps1` ne sait pas
-mettre à jour une installation existante non plus (il ne fait rien si
-`requirements.txt` est déjà présent, voir [Installation](#installation)) :
+mettre à jour le code d'une installation existante (s'il trouve déjà
+`requirements.txt`, il saute le téléchargement du dépôt, voir [Installation](#installation)) :
 ce n'est donc volontairement qu'un signal, pas une action. Désactivable via
 `update_check.enabled: false` dans `config.yml` (c'est le seul appel
 réseau que `launch.py` fait lui-même, en dehors de ceux de Jarvis
@@ -287,8 +291,8 @@ indépendant de ce dépôt.
 
 `config.yml` pointe vers `models/piper/fr_FR-tom-medium.onnx`
 (`tts.voice_model`) — voix masculine. Pour une voix féminine, remplace
-`tom` par `siwis`, à la fois dans la commande de téléchargement
-(`python -m piper.download_voices siwis`) et dans `config.yml`.
+`tom` par `siwis` : `python -m piper.download_voices fr_FR-siwis-medium`, puis
+`tts.voice_model: models/piper/fr_FR-siwis-medium.onnx` dans `config.yml`.
 
 ## Open WebUI
 
@@ -570,8 +574,7 @@ cache, jamais une erreur.
 
 Ville introuvable ou Open-Meteo injoignable : la météo se désactive
 proprement, avec un message clair, sans affecter le reste de l'assistant.
-Mets `weather.enabled: false` dans `config.yml` pour la désactiver toi-même
-volontairement.
+La météo est désactivée par défaut : `weather.enabled: true` pour l'activer.
 
 ## Alertes météo
 
@@ -680,21 +683,27 @@ dernière réponse complète (LLM + TTS).
 La page se rafraîchit toutes les 2 secondes (`<meta http-equiv="refresh">`,
 aucun JavaScript). Un endpoint `/status` renvoie les mêmes données en JSON.
 
-Passe `dashboard.enabled: false` pour le désactiver complètement (aucun
-serveur HTTP lancé). Port configurable via `dashboard.port` (8790 par
+Désactivé par défaut : `dashboard.enabled: true` pour le lancer. Port configurable via `dashboard.port` (8790 par
 défaut). N'écoute que sur `127.0.0.1`, pas conçu pour être exposé au-delà de
 ta machine. Implémenté avec `http.server` (bibliothèque standard) plutôt
-qu'un framework web — voir [Roadmap](ROADMAP.md).
+qu'un framework web.
 
 ## API satellite
 
-Un seul endpoint REST (`POST /assistant`, `server/satellite_api.py`) pour un
-futur client Raspberry Pi (voir [Roadmap](ROADMAP.md#satellites-raspberry-pi)) :
-le satellite envoie un WAV (mono, 16 bits, 16 kHz — même format que
-`record_until_silence` produit), Jarvis fait tourner STT → LLM/outils → TTS
-et renvoie la réponse **en flux, phrase par phrase**. Tout le traitement
-reste sur ce PC : le satellite n'a besoin que d'un micro/haut-parleur, aucun
-modèle chargé localement.
+`server/satellite_api.py` expose deux routes au client Raspberry Pi (voir
+[Roadmap](ROADMAP.md#satellites-raspberry-pi)) :
+
+- `POST /assistant` : le satellite envoie un WAV brut (corps de la requête,
+  mono, 16 bits, 16 kHz — le format de `record_until_silence`, 60 s max) avec
+  son nom de zone (`X-Zone`) ; Jarvis fait tourner STT → LLM/outils → TTS
+et renvoie la réponse **en flux, phrase par phrase**.
+- `GET /notifications` : les sons mis de côté pour ce satellite (minuteur
+  terminé...). Le satellite n'accepte aucune connexion entrante : un thread
+  de fond les réclame toutes les 3 s. Un minuteur demandé à un satellite
+  sonne chez lui (`TimerManager` retient l'`origine`), pas sur le PC.
+
+Tout le traitement reste sur ce PC : le satellite n'a besoin que d'un
+micro/haut-parleur, aucun modèle chargé localement.
 
 **Pourquoi en flux** : sans ça, le satellite attendrait « LLM complet + TTS
 complet » avant d'entendre quoi que ce soit — plus la réponse est longue,
@@ -719,18 +728,21 @@ satellite:
   api_key: "colle-ici-un-jeton-aléatoire"  # même valeur côté satellite — génère-en un avec `python generate_api_key.py`
 ```
 
-**Toujours protégée par une clé API** (en-tête `X-API-Key`), contrairement au
-panneau de ressources ou à Open WebUI en local : cette API écoute sur
-`0.0.0.0` par défaut, donc joignable par tout appareil du réseau, pas
-seulement `127.0.0.1`. Une `api_key` vide désactive l'accès plutôt que de
-l'ouvrir à n'importe qui — `main.py` refuse de démarrer l'API (avec un
-avertissement clair) si `satellite.enabled: true` mais `api_key` est vide.
+**Toujours protégée par une clé API** (en-tête `X-API-Key`, vérifiée avant
+de lire le corps), contrairement au panneau de ressources : cette API écoute
+sur `0.0.0.0` par défaut, donc joignable par tout appareil du réseau.
+`main.py` refuse de la démarrer (avec un avertissement) si `api_key` est
+vide ou fait moins de 16 caractères. Corps limité à ~2 Mo (413), WAV refusé
+si ce n'est pas du mono 16 bits 16 kHz (400). **HTTP en clair** : clé et
+audio circulent sans chiffrement, à réserver à un réseau de confiance (ou à
+placer derrière WireGuard/Tailscale, voir [Roadmap](ROADMAP.md)).
 
 `repondre_flux` (dans `main.py`) réutilise `choisir_reponse` — le même
 routage vers `llm.ask_tool_direct`/`ask_with_tools` que la boucle micro
 locale — et le même `LanguageModel` (donc le même historique de
 conversation) : un satellite est une autre façon de parler à Jarvis, pas une
-seconde instance. Contrairement à la boucle micro, pas de phrase d'attente
+seconde instance. Un verrou garantit un seul tour de conversation (et une
+seule transcription) à la fois, micro local et satellites confondus. Contrairement à la boucle micro, pas de phrase d'attente
 ("Je vérifie ça...") pendant un appel d'outil : le satellite n'a rien à
 jouer tant que la première phrase de la vraie réponse n'est pas prête.
 
@@ -742,7 +754,8 @@ tourner sur le Raspberry Pi — voir
 matériel/l'OS/les pilotes du HAT micro, puis
 [satellite/README.md](satellite/README.md) pour le client lui-même.
 
-Ne duplique **aucun** code de `server/` (pas d'import cross-dossier) :
+N'importe **rien** de `server/` (pas d'import cross-dossier ; `wakeword.py` et
+les conversions WAV en sont des copies voulues) :
 STT/LLM/TTS/outils n'existent que côté serveur, le satellite n'a que le
 strict nécessaire pour capter la voix et jouer la réponse — `main.py`
 (boucle mot-clé → enregistrement → `client_api.demander()` → lecture),
@@ -793,7 +806,8 @@ python main.py --debug-audio
   atteint. S'il reste souvent sous le seuil, baisse `wake_word.threshold`
   (essaie 0.3–0.4).
 - **Pendant l'enregistrement de ta question** : la ligne `[audio] vad=...
-  seuil=0.50 (parole/silence, X/33)` s'affiche en continu — surtout utile
+  seuil=0.50 (parole/silence, X/N)` s'affiche en continu — (X/N = blocs de silence comptés / requis, N ≈ 31 avec
+  `silence_duration: 1.0`) — surtout utile
   pour observer que le VAD fonctionne bien, rarement pour devoir toucher à
   `audio.vad_threshold` (0.5, la valeur recommandée par Silero).
 

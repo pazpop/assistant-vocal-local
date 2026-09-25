@@ -14,7 +14,7 @@ def test_generer_sonnerie_produit_de_l_audio():
 
 def test_demarrer_minuteur_valide():
     with patch("timer.threading.Timer") as mock_timer:
-        gestionnaire = TimerManager(on_expire=lambda label: None)
+        gestionnaire = TimerManager(on_expire=lambda label, origine: None)
         resultat = gestionnaire.executer_outil(
             "demarrer_minuteur", {"secondes": 30, "label": "pour les pâtes"}
         )
@@ -27,6 +27,20 @@ def test_demarrer_minuteur_valide():
         assert "pour les pâtes" in resultat
 
         mock_timer.return_value.start.assert_called_once()
+
+
+def test_minuteur_sonne_chez_le_satellite_qui_l_a_demande():
+    """Sans l'origine, un minuteur demandé depuis un satellite sonnerait sur
+    le PC au lieu de la pièce où l'on a parlé."""
+    on_expire = MagicMock()
+    gestionnaire = TimerManager(on_expire=on_expire)
+
+    with patch("timer.threading.Timer") as mock_timer:
+        gestionnaire.executer_outil("demarrer_minuteur", {"secondes": 5}, origine="cuisine")
+        _, callback_expiration = mock_timer.call_args[0]
+
+    callback_expiration()
+    on_expire.assert_called_once_with("", "cuisine")
 
 
 def test_minuteur_declenche_on_expire_et_se_retire_du_suivi():
@@ -42,12 +56,12 @@ def test_minuteur_declenche_on_expire_et_se_retire_du_suivi():
 
     assert "1 minuteur" in gestionnaire.lister()
     callback_expiration()
-    on_expire.assert_called_once_with("test")
+    on_expire.assert_called_once_with("test", None)
     assert gestionnaire.lister() == "Aucun minuteur en cours."
 
 
 def test_duree_invalide():
-    gestionnaire = TimerManager(on_expire=lambda label: None)
+    gestionnaire = TimerManager(on_expire=lambda label, origine: None)
     resultat = gestionnaire.executer_outil("demarrer_minuteur", {"secondes": -5})
     assert "invalide" in resultat.lower()
 
@@ -56,13 +70,13 @@ def test_duree_invalide():
 
 
 def test_argument_manquant():
-    gestionnaire = TimerManager(on_expire=lambda label: None)
+    gestionnaire = TimerManager(on_expire=lambda label, origine: None)
     resultat = gestionnaire.executer_outil("demarrer_minuteur", {})
     assert "argument manquant" in resultat.lower()
 
 
 def test_outil_inconnu():
-    gestionnaire = TimerManager(on_expire=lambda label: None)
+    gestionnaire = TimerManager(on_expire=lambda label, origine: None)
     resultat = gestionnaire.executer_outil("faire_le_cafe", {})
     assert "inconnu" in resultat.lower()
 
@@ -78,7 +92,7 @@ def test_formater_duree():
 
 def test_demarrer_minuteur_long_formate_en_minutes():
     with patch("timer.threading.Timer"):
-        gestionnaire = TimerManager(on_expire=lambda label: None)
+        gestionnaire = TimerManager(on_expire=lambda label, origine: None)
         resultat = gestionnaire.executer_outil("demarrer_minuteur", {"secondes": 300})
     assert "5 minutes" in resultat
     assert "300 secondes" not in resultat
@@ -98,13 +112,13 @@ def test_demande_minuteur_ignore_les_autres_questions():
 
 
 def test_lister_minuteurs_vide():
-    gestionnaire = TimerManager(on_expire=lambda label: None)
+    gestionnaire = TimerManager(on_expire=lambda label, origine: None)
     assert gestionnaire.executer_outil("lister_minuteurs", {}) == "Aucun minuteur en cours."
 
 
 def test_lister_plusieurs_minuteurs_numerotes_dans_l_ordre_de_creation():
     with patch("timer.threading.Timer"):
-        gestionnaire = TimerManager(on_expire=lambda label: None)
+        gestionnaire = TimerManager(on_expire=lambda label, origine: None)
         gestionnaire.demarrer(120, "")
         gestionnaire.demarrer(300, "pour les pâtes")
 
@@ -116,7 +130,7 @@ def test_lister_plusieurs_minuteurs_numerotes_dans_l_ordre_de_creation():
 
 def test_lister_un_minuteur_precis_donne_le_temps_restant():
     with patch("timer.threading.Timer"):
-        gestionnaire = TimerManager(on_expire=lambda label: None)
+        gestionnaire = TimerManager(on_expire=lambda label, origine: None)
         gestionnaire.demarrer(120, "")
 
     resultat = gestionnaire.executer_outil("lister_minuteurs", {"numero": 1})
@@ -125,7 +139,7 @@ def test_lister_un_minuteur_precis_donne_le_temps_restant():
 
 
 def test_lister_minuteur_introuvable():
-    gestionnaire = TimerManager(on_expire=lambda label: None)
+    gestionnaire = TimerManager(on_expire=lambda label, origine: None)
     resultat = gestionnaire.executer_outil("lister_minuteurs", {"numero": 5})
     assert "n'ai pas trouvé" in resultat.lower()
 
@@ -135,7 +149,7 @@ def test_les_numeros_ne_sont_jamais_reattribues():
     doit être "minuteur 3", jamais "minuteur 1" à la place — pour ne jamais
     désigner le mauvais minuteur par erreur."""
     with patch("timer.threading.Timer") as mock_timer:
-        gestionnaire = TimerManager(on_expire=lambda label: None)
+        gestionnaire = TimerManager(on_expire=lambda label, origine: None)
         gestionnaire.demarrer(60, "")  # numéro 1
         gestionnaire.demarrer(120, "")  # numéro 2
 
@@ -153,7 +167,7 @@ def test_les_numeros_ne_sont_jamais_reattribues():
 
 def test_annuler_un_minuteur_precis():
     with patch("timer.threading.Timer") as mock_timer:
-        gestionnaire = TimerManager(on_expire=lambda label: None)
+        gestionnaire = TimerManager(on_expire=lambda label, origine: None)
         gestionnaire.demarrer(120, "pour les pâtes")
 
         resultat = gestionnaire.executer_outil("annuler_minuteur", {"cible": "1"})
@@ -165,7 +179,7 @@ def test_annuler_un_minuteur_precis():
 
 def test_annuler_tous_les_minuteurs():
     with patch("timer.threading.Timer") as mock_timer:
-        gestionnaire = TimerManager(on_expire=lambda label: None)
+        gestionnaire = TimerManager(on_expire=lambda label, origine: None)
         gestionnaire.demarrer(60, "")
         gestionnaire.demarrer(120, "")
 
@@ -177,12 +191,12 @@ def test_annuler_tous_les_minuteurs():
 
 
 def test_annuler_minuteur_introuvable():
-    gestionnaire = TimerManager(on_expire=lambda label: None)
+    gestionnaire = TimerManager(on_expire=lambda label, origine: None)
     resultat = gestionnaire.executer_outil("annuler_minuteur", {"cible": "1"})
     assert "n'ai pas trouvé" in resultat.lower()
 
 
 def test_annuler_sans_minuteur_actif():
-    gestionnaire = TimerManager(on_expire=lambda label: None)
+    gestionnaire = TimerManager(on_expire=lambda label, origine: None)
     resultat = gestionnaire.executer_outil("annuler_minuteur", {"cible": "tous"})
     assert "aucun minuteur" in resultat.lower()

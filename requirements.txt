@@ -7,8 +7,8 @@
 
 # STT
 faster-whisper==1.2.1
-# Ces deux paquets ne servent qu'au GPU NVIDIA (STT_DEVICE cuda dans
-# config.yml). Sur AMD ou CPU-only (voir le README), ils sont inutiles :
+# Ces deux paquets ne servent qu'au GPU NVIDIA (`stt.device: cuda`
+# dans config.yml). Sur AMD ou CPU-only (voir ARCHITECTURE.md#gpu-amd), inutiles :
 # tu peux commenter ces deux lignes avant `pip install -r requirements.txt`.
 nvidia-cublas-cu12==12.9.2.10
 nvidia-cudnn-cu12==9.26.0.51
@@ -52,4 +52,3 @@ nvidia-ml-py==13.610.43
 # API satellite (satellite_api.py) — voir ROADMAP.md > Satellites Raspberry Pi
 fastapi==0.141.1
 uvicorn==0.53.0
-python-multipart==0.0.32

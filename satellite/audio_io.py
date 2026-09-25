@@ -16,6 +16,7 @@ Moins robuste que le VAD du serveur face à un bruit de fond très variable
 (télé, radio) — limite connue, pas un oubli (voir ARCHITECTURE.md).
 """
 import queue
+import threading
 from collections import deque
 from dataclasses import dataclass
 
@@ -184,12 +185,16 @@ def record_until_silence(debug: bool = False) -> Enregistrement:
     )
 
 
+_verrou_lecture = threading.Lock()  # réponse et notification (thread de fond) ne se chevauchent pas
+
+
 def play_audio(audio: np.ndarray, sample_rate: int) -> None:
     """Joue un signal audio sur le haut-parleur configuré (bloquant)."""
     if audio.size == 0:
         return
-    sd.play(audio, samplerate=sample_rate, device=config.AUDIO_OUTPUT_DEVICE)
-    sd.wait()
+    with _verrou_lecture:
+        sd.play(audio, samplerate=sample_rate, device=config.AUDIO_OUTPUT_DEVICE)
+        sd.wait()
 
 
 def generer_bip(sample_rate: int, frequence: float = 880.0, duree: float = 0.15) -> np.ndarray:

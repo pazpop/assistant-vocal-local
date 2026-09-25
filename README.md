@@ -82,14 +82,6 @@ Pas de GPU NVIDIA, voix féminine, configuration de Home Assistant, dépannage
 GPU : voir [ARCHITECTURE.md](ARCHITECTURE.md#installation-avancée) et
 [Points d'attention](ARCHITECTURE.md#points-dattention).
 
-## 🧩 Stack
-
-openWakeWord (mot-clé) · Silero VAD · faster-whisper (STT, GPU) ·
-Ollama/Qwen2.5:7b (LLM) · Piper (TTS, CPU) · Home Assistant (domotique, API
-REST locale) · Open-Meteo + Environnement Canada (météo/alertes, gratuits,
-sans clé) · Open WebUI (interface web, optionnelle). Schéma complet et
-choix techniques : [ARCHITECTURE.md](ARCHITECTURE.md).
-
 ## 🧪 Tests
 
 ```powershell
@@ -97,16 +89,16 @@ pip install pytest
 pytest tests/
 ```
 
-Logique pure uniquement (pas le micro/LLM/Piper, à valider manuellement en
-lançant `server/main.py`) — voir [tests/README.md](tests/README.md).
+Pas de micro/LLM/Piper (à valider en lançant `server/main.py`) — voir
+[tests/README.md](tests/README.md). Stack et choix techniques :
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Aller plus loin
 
 - **Architecture** : [ARCHITECTURE.md](ARCHITECTURE.md) — schéma, choix
   techniques, chaque fonctionnalité en détail, points d'attention, limites
   connues
-- **Roadmap** : [ROADMAP.md](ROADMAP.md) — fonctionnalités intégrées, à
-  venir, et décisions écartées (avec le pourquoi)
+- **Roadmap** : [ROADMAP.md](ROADMAP.md) — ce qui reste à faire
 
 ## 🙏 Crédits & licence
 

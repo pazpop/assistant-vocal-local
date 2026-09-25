@@ -89,7 +89,7 @@ WAKE_WORD_PROMPT = _get("conversation.wake_word_prompt", "Oui, comment puis-je v
 # pour cette session — pas de persistance sur disque, l'historique repart à
 # zéro à chaque lancement de l'assistant.
 CONVERSATION_MAX_ECHANGES = _get("conversation.max_echanges", 20)
-# Phrases qui déclenchent un reset vocal de l'historique en cours (comparaison en minuscules, sans accent requis)
+# Phrases qui déclenchent un reset vocal de l'historique en cours (comparaison en minuscules ; variantes sans accent listées à la main)
 MEMORY_RESET_PHRASES = (
     "oublie tout",
     "oublie tout ce qu'on s'est dit",
@@ -122,6 +122,7 @@ STT_LANGUAGE = _get("stt.language", "fr")
 
 # --- LLM (Ollama) ---
 LLM_MODEL = _get("llm.model", "qwen2.5:7b")
+LLM_KEEP_ALIVE = _get("llm.keep_alive", "30m")  # durée de maintien du modèle en VRAM
 LLM_SYSTEM_PROMPT_TEMPLATE = (
     "Tu es un assistant vocal francophone nommé Jarvis, qui tourne entièrement "
     "en local sur ce PC. Adopte un ton chaleureux, amical et enjoué, comme un "

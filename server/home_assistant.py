@@ -123,7 +123,7 @@ class HomeAssistantClient:
         except requests.exceptions.ConnectionError as exc:
             raise RuntimeError(
                 f"Impossible de joindre la VM Home Assistant à {self.base_url}. "
-                "Vérifie : (1) que l'IP dans HA_BASE_URL est la bonne (elle a pu "
+                "Vérifie : (1) que l'IP dans home_assistant.base_url est la bonne (elle a pu "
                 "changer si elle n'est pas fixe/réservée dans ton routeur), "
                 "(2) que la VM est allumée et joignable (essaie `ping <IP>`), "
                 "(3) qu'aucun pare-feu ne bloque le port 8123."
