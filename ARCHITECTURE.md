@@ -116,8 +116,8 @@ assistant-vocal-local/
 ├── models/                # Poids/voix téléchargés (ignoré par git, voir models/README.md)
 │   ├── piper/              # Voix Piper (.onnx + .onnx.json)
 ├── tests/                 # Tests pytest du serveur (satellite/tests/ pour le client)
-├── .github/workflows/tests.yml   # CI : tests serveur, tests satellite, bump de VERSION
-├── install.ps1, install.bat, launch.py, generate_api_key.py, VERSION
+├── .github/workflows/tests.yml   # CI : tests serveur et tests satellite
+├── install.ps1, install.bat, launch.py, generate_api_key.py
 ├── .venv/                 # Environnement virtuel (ignoré par git)
 ├── .gitignore
 ├── LICENSE
@@ -234,41 +234,29 @@ qui le rendrait bloquant avant d'atteindre la pause).
 
 ## Vérification de version
 
-`launch.py` compare le fichier `VERSION` (racine du dépôt, `MAJOR.commits`
-— voir plus bas) à celui du dépôt GitHub à chaque démarrage — requête
-réseau courte (3s de timeout), silencieuse en cas d'échec, jamais
-bloquante pour Jarvis. Un message s'affiche dans les deux cas (à jour ou
-en retard), pas seulement en cas de retard :
+`launch.py` compare le commit local à celui de `main` sur GitHub (API
+`commits/main`) à chaque démarrage — requête courte (3 s), silencieuse en
+cas d'échec, jamais bloquante. Un message s'affiche dans les deux cas :
 
 ```
-✅ Code à jour (version 1.x).
+✅ Code à jour (a1b2c3d).
 ```
 ```
-⚠️  Nouvelle version disponible sur GitHub (locale : 1.x, distante : 1.y) — https://github.com/pazpop/assistant-vocal-local
+⚠️  Nouvelle version disponible sur GitHub (locale : a1b2c3d, distante : e4f5a6b) — https://github.com/pazpop/assistant-vocal-local
 ```
 
-**Ne met jamais rien à jour automatiquement** — `install.ps1` ne sait pas
-mettre à jour le code d'une installation existante (s'il trouve déjà
-`requirements.txt`, il saute le téléchargement du dépôt, voir [Installation](#installation)) :
-ce n'est donc volontairement qu'un signal, pas une action. Désactivable via
-`update_check.enabled: false` dans `config.yml` (c'est le seul appel
-réseau que `launch.py` fait lui-même, en dehors de ceux de Jarvis
-documentés ailleurs dans ce fichier).
+Le commit local est `git rev-parse HEAD` pour un clone, ou le fichier
+`.version` (non versionné) que `install.ps1` écrit après un téléchargement
+en `.zip`, sans Git. Sans l'un ni l'autre, la vérification est ignorée. Un
+clone en avance sur GitHub (travail non poussé) est « à jour »
+(`git merge-base --is-ancestor`).
 
-**`VERSION` est mis à jour automatiquement**, pas à la main : un job GitHub
-Actions (`bump-version` dans `.github/workflows/tests.yml`) calcule
-`MAJOR.$(git rev-list --count HEAD)` à chaque push sur `main` (une fois
-les tests passés) et commit le résultat si besoin (`[skip ci]` pour ne pas
-se redéclencher lui-même) — sur le modèle d'arcadepipe. `MAJOR` (`"1"`
-actuellement) ne bouge qu'à la main dans le workflow, pour une vraie
-release ; le nombre de commits est le "mineur", recalculé automatiquement
-— approximatif par nature (le commit de bump lui-même n'est recompté qu'au
-push suivant), mais suffisant : `launch.py` ne fait qu'une comparaison
-différent/identique, pas un calcul exact.
-
-Le calcul se fait uniquement côté CI (qui a Git) — `install.ps1` continue
-de ne pas en dépendre côté utilisateur final : `VERSION` reste un simple
-fichier texte, comparé tel quel, peu importe la méthode d'installation.
+Aucun commit automatique : pas de numéro à maintenir, donc plus de
+`git pull --rebase` avant chaque push. **Ne met jamais rien à jour** —
+`install.ps1` ne sait pas mettre à jour le code d'une installation existante
+(s'il trouve déjà `requirements.txt`, il saute le téléchargement du dépôt) :
+c'est volontairement un signal, pas une action. Désactivable via
+`update_check.enabled: false` (seul appel réseau de `launch.py` lui-même).
 
 ## Installation avancée
 

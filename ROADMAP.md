@@ -5,19 +5,6 @@ Ce qui reste à faire. L'existant (et le pourquoi des choix) est dans
 
 ## Prioritaire
 
-### Versionning sans `git pull --rebase`
-
-Le job CI `bump-version` (`.github/workflows/tests.yml`) recommite `VERSION`
-sur `main` après chaque push : il faut donc `git pull --rebase` avant le push
-suivant. Piste : supprimer ce commit et comparer des SHA de commit.
-
-- [ ] `launch.py` : version locale = `git rev-parse HEAD` (clone) ou fichier
-  `.version` (non versionné) écrit par `install.ps1` à l'installation via
-  l'API GitHub ; version distante = `commits/main` de l'API GitHub.
-- [ ] Ne pas signaler « nouvelle version » quand le local est en avance
-  (`git merge-base --is-ancestor`).
-- [ ] Supprimer `VERSION` et le job `bump-version`.
-
 ### Météo : prévisions
 
 - [ ] Répondre à « Quelle est la météo pour demain ? » (et après-demain, ce
@@ -29,7 +16,7 @@ suivant. Piste : supprimer ce commit et comparer des SHA de commit.
 
 ### Suites de la revue du 2026-09-25
 
-- [ ] Tests pour `launch.py` (zéro couverture aujourd'hui) : arguments, refus
+- [ ] Tests pour le reste de `launch.py` (seule la version est couverte) : arguments, refus
   des deux purges combinées, lecture de la version.
 - [ ] Alertes météo : les diffuser aussi aux satellites (aujourd'hui, seul le
   PC les annonce). Même mécanisme que les minuteurs (`BoiteNotifications`).

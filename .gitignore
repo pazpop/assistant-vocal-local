@@ -34,3 +34,6 @@ models/**/*.pt
 .idea/
 Thumbs.db
 .DS_Store
+
+# Commit installé par install.ps1 (.zip), lu par launch.py
+.version

@@ -150,6 +150,14 @@ try {
         $DossierExtrait = Get-ChildItem -Path $ExtractDir -Directory | Select-Object -First 1
         Move-Item $DossierExtrait.FullName $ProjetDir
         Remove-Item $ExtractDir -Recurse -Force
+        # Pas de Git ici : on note le commit telecharge, pour que launch.py
+        # puisse dire si le code est a jour (sans reseau, on saute : optionnel).
+        try {
+            $Sha = (Invoke-RestMethod -Uri "https://api.github.com/repos/pazpop/assistant-vocal-local/commits/main" -Headers @{ Accept = "application/vnd.github.sha" } -TimeoutSec 10).ToString().Trim()
+            Set-Content -Path (Join-Path $ProjetDir ".version") -Value $Sha -Encoding ascii
+        } catch {
+            Write-Host "Version du depot non enregistree (GitHub injoignable) : la verification de mise a jour sera ignoree."
+        }
         Write-Host "OK - Depot pret : $ProjetDir"
     }
 

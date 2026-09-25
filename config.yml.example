@@ -181,7 +181,7 @@ open_webui:
   # ARCHITECTURE.md.
 
 update_check:
-  # launch.py compare le fichier VERSION local à celui du dépôt GitHub au
+  # launch.py compare le commit local à celui de `main` sur GitHub au
   # démarrage (requête courte, silencieuse en cas d'échec) et affiche si le
   # code est à jour ou non — ne met jamais rien à jour.
   enabled: false

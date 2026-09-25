@@ -30,8 +30,9 @@ SERVER_PYTHON = BASE_DIR / ".venv" / "Scripts" / "python.exe"
 OPENWEBUI_EXE = OPENWEBUI_DIR / ".venv-openwebui" / "Scripts" / "open-webui.exe"
 
 OLLAMA_URL = "http://localhost:11434/api/version"
-VERSION_URL = "https://raw.githubusercontent.com/pazpop/assistant-vocal-local/main/VERSION"
-VERSION_LOCALE_PATH = BASE_DIR / "VERSION"
+COMMIT_DISTANT_URL = "https://api.github.com/repos/pazpop/assistant-vocal-local/commits/main"
+# Écrit par install.ps1 pour une installation par .zip (sans Git) ; ignoré si le dossier est un clone.
+COMMIT_LOCAL_PATH = BASE_DIR / ".version"
 
 # Ouvre Open WebUI dans sa propre fenêtre de console plutôt que de mélanger
 # ses logs (verbeux : migrations de base, requêtes HTTP) avec ceux de
@@ -103,29 +104,68 @@ def lire_config() -> tuple[bool, str, int, str, bool]:
     return actif == "True", host, int(port), api_key, verif_version == "True"
 
 
-def verifier_version() -> None:
-    """Avertit si une version plus récente existe sur GitHub (comparaison
-    du fichier VERSION local à celui du dépôt) — ne met jamais rien à jour
-    automatiquement, juste un message (voir ARCHITECTURE.md). Ne bloque
-    jamais le démarrage : timeout court, silencieux en cas d'échec réseau.
-    Pas basé sur Git (install.ps1 n'en dépend pas, voir ARCHITECTURE.md)."""
-    if not VERSION_LOCALE_PATH.exists():
-        return
-    version_locale = VERSION_LOCALE_PATH.read_text(encoding="utf-8").strip()
+def _git(*args: str) -> subprocess.CompletedProcess | None:
     try:
-        with urllib.request.urlopen(VERSION_URL, timeout=3) as reponse:
-            version_distante = reponse.read().decode("utf-8").strip()
+        return subprocess.run(
+            ["git", *args], cwd=BASE_DIR, capture_output=True, text=True, timeout=5
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None  # Git absent
+
+
+def commit_local() -> str | None:
+    """SHA du code local : `git rev-parse HEAD` pour un clone, sinon le
+    fichier `.version` posé par install.ps1 (installation par .zip)."""
+    if (BASE_DIR / ".git").exists():
+        resultat = _git("rev-parse", "HEAD")
+        if resultat and resultat.returncode == 0:
+            return resultat.stdout.strip()
+    if COMMIT_LOCAL_PATH.exists():
+        return COMMIT_LOCAL_PATH.read_text(encoding="utf-8").strip()
+    return None
+
+
+def commit_distant() -> str | None:
+    """SHA du dernier commit de `main` sur GitHub (None si injoignable)."""
+    requete = urllib.request.Request(
+        COMMIT_DISTANT_URL, headers={"Accept": "application/vnd.github.sha"}
+    )
+    try:
+        with urllib.request.urlopen(requete, timeout=3) as reponse:
+            sha = reponse.read().decode("utf-8").strip()
     except (urllib.error.URLError, OSError):
+        return None
+    return sha if re.fullmatch(r"[0-9a-f]{40}", sha) else None  # jamais affiché tel quel sinon
+
+
+def est_a_jour(local: str, distant: str, local_contient_distant: bool) -> bool:
+    """Même commit, ou local en avance (le commit distant fait partie de son
+    historique : travail non poussé, pas un retard)."""
+    return local == distant or local_contient_distant
+
+
+def verifier_version() -> None:
+    """Signale si `main` a du nouveau sur GitHub, en comparant des SHA de
+    commit — ne met jamais rien à jour (voir ARCHITECTURE.md). Ne bloque
+    jamais le démarrage : timeout court, silencieux si pas de réseau ou si la
+    version locale est inconnue (ni clone Git, ni `.version`)."""
+    local = commit_local()
+    if local is None:
         return
-    if not re.fullmatch(r"\d+(\.\d+)*", version_distante):
-        return  # réponse inattendue : jamais affichée telle quelle dans le terminal
-    if version_distante == version_locale:
-        print(f"✅ Code à jour (version {version_locale}).")
+    distant = commit_distant()
+    if distant is None:
+        return
+    en_avance = False
+    if local != distant and (BASE_DIR / ".git").exists():
+        # 0 = le commit distant est un ancêtre de HEAD ; erreur = il nous manque.
+        resultat = _git("merge-base", "--is-ancestor", distant, "HEAD")
+        en_avance = resultat is not None and resultat.returncode == 0
+    if est_a_jour(local, distant, en_avance):
+        print(f"✅ Code à jour ({local[:7]}).")
     else:
         print(
-            f"⚠️  Nouvelle version disponible sur GitHub (locale : "
-            f"{version_locale}, distante : {version_distante}) — "
-            "https://github.com/pazpop/assistant-vocal-local\n"
+            f"⚠️  Nouvelle version disponible sur GitHub (locale : {local[:7]}, "
+            f"distante : {distant[:7]}) — https://github.com/pazpop/assistant-vocal-local\n"
         )
 
 
