@@ -5,15 +5,6 @@ Ce qui reste à faire. L'existant (et le pourquoi des choix) est dans
 
 ## Prioritaire
 
-### Météo : prévisions
-
-- [ ] Répondre à « Quelle est la météo pour demain ? » (et après-demain, ce
-  week-end...) : `weather.py` ne donne que la météo actuelle. Open-Meteo
-  fournit déjà les prévisions journalières (`daily`), sans clé. Ajouter un
-  paramètre de jour à l'outil `obtenir_meteo`, résumer en une phrase parlée
-  (conditions, min/max, pluie), et tester le déclencheur (« demain » ne doit
-  pas tomber sur la route date/heure).
-
 ### Suites de la revue du 2026-09-25
 
 - [ ] Tests pour le reste de `launch.py` (seule la version est couverte) : arguments, refus

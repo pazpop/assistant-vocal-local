@@ -27,6 +27,9 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 # immédiate en cas de répétition.
 CACHE_TTL_SECONDES = 600
 
+# Jours de prévision acceptés -> décalage en jours (l'API en donne 3 : aujourd'hui + 2).
+JOURS_PREVISION = {"demain": 1, "après-demain": 2}
+
 # Table de correspondance des codes météo WMO (documentés par Open-Meteo :
 # https://open-meteo.com/en/docs) vers une description parlée en français.
 DESCRIPTIONS_METEO = {
@@ -60,8 +63,22 @@ DESCRIPTIONS_METEO = {
     99: "un orage avec de la grêle",
 }
 
-# Outil exposé au LLM (même format que HA_TOOLS dans home_assistant.py).
-WEATHER_TOOLS = [
+_PARAM_VILLE = {
+    "type": "string",
+    "description": (
+        "Ville pour laquelle donner la météo, seulement si explicitement "
+        "nommée dans la question (ex: \"quel temps fait-il à Paris ?\")."
+    ),
+}
+_AIDE_VILLE = (
+    "Omets le paramètre 'ville' si aucune ville n'est explicitement nommée "
+    "dans la question : l'outil connaît déjà la ville de l'utilisateur, ne "
+    "demande jamais à l'utilisateur où il se trouve."
+)
+
+# Outils exposés au LLM (même format que HA_TOOLS dans home_assistant.py) :
+# un seul outil à la fois pour ask_tool_direct, voir outils_meteo().
+METEO_ACTUELLE_TOOLS = [
     {
         "type": "function",
         "function": {
@@ -69,28 +86,45 @@ WEATHER_TOOLS = [
             "description": (
                 "Donne la météo actuelle (conditions, température, ressenti, "
                 "vent). Appelle TOUJOURS cet outil pour toute question sur le "
-                "temps qu'il fait. Omets le paramètre 'ville' si aucune ville "
-                "n'est explicitement nommée dans la question : l'outil "
-                "connaît déjà la ville de l'utilisateur par défaut, ne "
-                "demande jamais à l'utilisateur où il se trouve."
+                f"temps qu'il fait maintenant. {_AIDE_VILLE}"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"ville": _PARAM_VILLE},
+                "required": [],
+            },
+        },
+    },
+]
+
+PREVISION_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "obtenir_prevision_meteo",
+            "description": (
+                "Donne la prévision météo de demain ou d'après-demain "
+                "(conditions, températures min/max, risque de précipitations). "
+                "Appelle TOUJOURS cet outil pour toute question sur le temps "
+                f"qu'il fera. {_AIDE_VILLE}"
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "ville": {
+                    "jour": {
                         "type": "string",
-                        "description": (
-                            "Ville pour laquelle donner la météo, seulement "
-                            "si explicitement nommée dans la question (ex: "
-                            "\"quel temps fait-il à Paris ?\")."
-                        ),
+                        "enum": list(JOURS_PREVISION),
+                        "description": "Jour de la prévision (demain par défaut).",
                     },
+                    "ville": _PARAM_VILLE,
                 },
                 "required": [],
             },
         },
     },
 ]
+
+WEATHER_TOOLS = METEO_ACTUELLE_TOOLS + PREVISION_TOOLS
 
 # Phrases qui déclenchent une question météo (comparaison en minuscules),
 # utilisées pour router vers llm.ask_tool_direct plutôt que le LLM générique
@@ -104,6 +138,14 @@ WEATHER_TRIGGER_PHRASES = (
     "il fait beau",
     "il fait froid",
     "il fait chaud",
+    "prévision",
+    "va pleuvoir",
+    "va neiger",
+    "quel temps fera",
+    "quel temps va-t-il faire",
+    "fera beau",
+    "fera froid",
+    "fera chaud",
     "quel temps fait",
     "quel temps qu'il fait",
     "quel temps il fait",
@@ -115,6 +157,21 @@ WEATHER_TRIGGER_PHRASES = (
 def demande_meteo(texte: str) -> bool:
     """Détecte si une phrase transcrite demande la météo."""
     return contient_une_phrase(texte, WEATHER_TRIGGER_PHRASES)
+
+
+def demande_prevision(texte: str) -> bool:
+    """Vrai si la question porte sur demain ou après-demain (« après-demain »
+    contient « demain »)."""
+    return contient_une_phrase(texte, ("demain",))
+
+
+def outils_meteo(question: str) -> list[dict] | None:
+    """L'unique outil météo qui correspond à la question (prévision si elle
+    parle de demain, sinon météo actuelle), ou None si ce n'est pas une
+    question météo. Choisi ici, pas par le LLM : plus fiable."""
+    if not demande_meteo(question):
+        return None
+    return PREVISION_TOOLS if demande_prevision(question) else METEO_ACTUELLE_TOOLS
 
 
 def geocoder(requete: str) -> tuple[float, float, str]:
@@ -151,73 +208,109 @@ class WeatherClient:
     ):
         self.ville = ville
         self.latitude, self.longitude, _ = geocoder(requete_geocodage)
-        # Une entrée par ville demandée (clé = paramètre `ville` reçu, None
-        # pour la ville par défaut) : {ville: (timestamp, réponse formatée)}.
-        self._cache: dict[str | None, tuple[float, str]] = {}
+        # {(ville, jour): (timestamp, réponse formatée)} ; ville None = ville
+        # par défaut, jour None = météo actuelle.
+        self._cache: dict[tuple[str | None, str | None], tuple[float, str]] = {}
 
-    def obtenir_meteo(self, ville: str | None = None) -> str:
-        """Récupère la météo actuelle et la formule en une phrase naturelle.
+    def _lieu(self, ville: str | None) -> tuple[float, float, str] | str:
+        """(latitude, longitude, nom) du lieu demandé, ou un message d'erreur
+        parlé si la ville est introuvable. Sans `ville`, la position de
+        l'utilisateur (déjà géocodée au démarrage) ; avec `ville`, géocodage à
+        la volée — un échec ici ne désactive pas la météo, contrairement à un
+        échec au démarrage."""
+        if ville is None:
+            return self.latitude, self.longitude, self.ville
+        try:
+            latitude, longitude, _ = geocoder(ville)
+        except RuntimeError:
+            return (
+                f"Je n'ai pas trouvé la ville « {ville} ». Je ne peux "
+                f"donner la météo que pour {self.ville} pour l'instant."
+            )
+        return latitude, longitude, ville
 
-        Sans `ville`, utilise la position de l'utilisateur (mise en cache
-        au démarrage). Avec `ville`, géocode cette ville à la volée pour
-        répondre à une question météo sur un autre lieu — un échec de
-        géocodage ici ne désactive pas la météo pour autant, contrairement à
-        un échec au démarrage.
-
-        Une réponse déjà obtenue pour la même ville dans les
-        `CACHE_TTL_SECONDES` dernières secondes est réutilisée telle quelle,
-        sans nouvel appel réseau (ni géocodage, ni prévisions) — seules les
-        réponses réussies sont mises en cache, jamais un message d'erreur."""
+    def _repondre(self, cle: tuple[str | None, str | None], ville, formuler) -> str:
+        """Cache (`CACHE_TTL_SECONDES`, réponses réussies seulement) + lieu +
+        appel Open-Meteo. `formuler(latitude, longitude, nom)` interroge l'API
+        et renvoie la phrase ; toute erreur réseau/format devient un message
+        (jamais « 0 degré » si un champ manque)."""
         maintenant = time.time()
-        en_cache = self._cache.get(ville)
+        en_cache = self._cache.get(cle)
         if en_cache is not None and maintenant - en_cache[0] < CACHE_TTL_SECONDES:
             return en_cache[1]
 
-        if ville is None:
-            latitude, longitude, nom = self.latitude, self.longitude, self.ville
-        else:
-            try:
-                latitude, longitude, _ = geocoder(ville)
-            except RuntimeError:
-                return (
-                    f"Je n'ai pas trouvé la ville « {ville} ». Je ne peux "
-                    f"donner la météo que pour {self.ville} pour l'instant."
-                )
-            nom = ville
-
+        lieu = self._lieu(ville)
+        if isinstance(lieu, str):
+            return lieu
         try:
-            reponse = requests.get(
-                FORECAST_URL,
-                params={
-                    "latitude": latitude,
-                    "longitude": longitude,
-                    "current": "temperature_2m,apparent_temperature,weather_code,wind_speed_10m",
-                    "timezone": "auto",
-                },
-                timeout=5,
-            )
-            reponse.raise_for_status()
-            actuel = reponse.json()["current"]
-            temperature = round(actuel["temperature_2m"])
-            ressenti = round(actuel["apparent_temperature"])
-            vent = round(actuel["wind_speed_10m"])
-        except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
-            # Erreur réseau, JSON invalide ou champ absent : jamais annoncer "0 degré".
+            resultat = formuler(*lieu)
+        except (requests.RequestException, ValueError, KeyError, IndexError, TypeError) as exc:
             return f"Erreur en récupérant la météo : {exc!r}"
 
-        code = actuel.get("weather_code")
-        description = DESCRIPTIONS_METEO.get(code, "des conditions incertaines")
-
-        resultat = (
-            f"À {nom}, il fait actuellement {description}, "
-            f"{temperature} degrés, ressenti {ressenti} degrés, "
-            f"vent de {vent} km/h."
-        )
-        self._cache[ville] = (maintenant, resultat)
+        self._cache[cle] = (maintenant, resultat)
         return resultat
+
+    @staticmethod
+    def _interroger(latitude: float, longitude: float, **params: str | int) -> dict:
+        reponse = requests.get(
+            FORECAST_URL,
+            params={"latitude": latitude, "longitude": longitude, "timezone": "auto", **params},
+            timeout=5,
+        )
+        reponse.raise_for_status()
+        return reponse.json()
+
+    def obtenir_meteo(self, ville: str | None = None) -> str:
+        """Météo actuelle, en une phrase naturelle (ville par défaut si
+        `ville` est omise)."""
+
+        def formuler(latitude: float, longitude: float, nom: str) -> str:
+            actuel = self._interroger(
+                latitude, longitude,
+                current="temperature_2m,apparent_temperature,weather_code,wind_speed_10m",
+            )["current"]
+            description = DESCRIPTIONS_METEO.get(actuel.get("weather_code"), "des conditions incertaines")
+            return (
+                f"À {nom}, il fait actuellement {description}, "
+                f"{round(actuel['temperature_2m'])} degrés, "
+                f"ressenti {round(actuel['apparent_temperature'])} degrés, "
+                f"vent de {round(actuel['wind_speed_10m'])} km/h."
+            )
+
+        return self._repondre((ville, None), ville, formuler)
+
+    def obtenir_prevision(self, jour: str = "demain", ville: str | None = None) -> str:
+        """Prévision de `jour` ("demain" ou "après-demain", sinon demain),
+        en une phrase naturelle."""
+        jour = jour.strip().lower().replace("apres", "après")
+        if jour not in JOURS_PREVISION:
+            jour = "demain"
+
+        def formuler(latitude: float, longitude: float, nom: str) -> str:
+            journalier = self._interroger(
+                latitude, longitude,
+                daily="weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+                forecast_days=3,
+            )["daily"]
+            i = JOURS_PREVISION[jour]
+            description = DESCRIPTIONS_METEO.get(journalier["weather_code"][i], "des conditions incertaines")
+            phrase = (
+                f"{jour.capitalize()} à {nom}, on prévoit {description}, "
+                f"entre {round(journalier['temperature_2m_min'][i])} et "
+                f"{round(journalier['temperature_2m_max'][i])} degrés"
+            )
+            pluie = journalier.get("precipitation_probability_max", [None] * 3)[i]
+            if pluie is not None and pluie >= 20:
+                phrase += f", avec {round(pluie)} pour cent de probabilité de précipitations"
+            return phrase + "."
+
+        return self._repondre((ville, jour), ville, formuler)
 
     def executer_outil(self, nom: str, arguments: dict) -> str:
         """Dispatch pour le tool-calling du LLM (même patron que HomeAssistantClient)."""
+        ville = arguments.get("ville") or None
         if nom == "obtenir_meteo":
-            return self.obtenir_meteo(ville=arguments.get("ville") or None)
+            return self.obtenir_meteo(ville=ville)
+        if nom == "obtenir_prevision_meteo":
+            return self.obtenir_prevision(jour=arguments.get("jour") or "demain", ville=ville)
         return f"Outil météo inconnu : {nom}"

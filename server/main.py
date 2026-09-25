@@ -40,7 +40,7 @@ from trigger import contient_une_phrase
 from tts import TextToSpeech
 from vad import VoiceActivityDetector
 from wakeword import WakeWordDetector
-from weather import WEATHER_TOOLS, WeatherClient, demande_meteo
+from weather import WEATHER_TOOLS, WeatherClient, outils_meteo
 from weather_alerts import ALERT_TOOLS, AlertesMeteoClient, demande_alerte
 
 AU_REVOIR = "À la prochaine !"
@@ -145,7 +145,7 @@ def construire_routes_directes(
         return ALERT_TOOLS if demande_alerte(question) else None
 
     def route_meteo(question: str) -> list[dict] | None:
-        return WEATHER_TOOLS if demande_meteo(question) else None
+        return outils_meteo(question)
 
     def route_date_heure(question: str) -> list[dict] | None:
         return DATE_TIME_TOOLS if demande_date_heure(question) else None

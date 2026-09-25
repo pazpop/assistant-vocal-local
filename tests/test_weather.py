@@ -5,7 +5,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from weather import DESCRIPTIONS_METEO, WeatherClient, demande_meteo, geocoder
+from weather import (
+    DESCRIPTIONS_METEO,
+    METEO_ACTUELLE_TOOLS,
+    PREVISION_TOOLS,
+    WeatherClient,
+    demande_meteo,
+    geocoder,
+    outils_meteo,
+)
 
 
 def _client_factice() -> WeatherClient:
@@ -243,3 +251,84 @@ def test_obtenir_meteo_ne_met_jamais_une_erreur_en_cache():
         client.obtenir_meteo(ville="Ville Imaginaire")
 
     assert "Ville Imaginaire" not in client._cache
+
+
+def _reponse_prevision(pluie=(0, 10, 60)):
+    reponse = MagicMock()
+    reponse.json.return_value = {
+        "daily": {
+            "weather_code": [0, 3, 61],
+            "temperature_2m_max": [22.4, 20.6, 15.0],
+            "temperature_2m_min": [10.0, 11.5, 9.2],
+            "precipitation_probability_max": list(pluie),
+        }
+    }
+    return reponse
+
+
+@patch("weather.requests.get")
+def test_obtenir_prevision_demain(mock_get):
+    mock_get.return_value = _reponse_prevision()
+
+    resultat = _client_factice().obtenir_prevision("demain")
+
+    assert resultat == "Demain à Montréal, on prévoit un ciel couvert, entre 12 et 21 degrés."
+    _, kwargs = mock_get.call_args
+    assert kwargs["params"]["forecast_days"] == 3
+
+
+@patch("weather.requests.get")
+def test_obtenir_prevision_apres_demain_avec_risque_de_pluie(mock_get):
+    mock_get.return_value = _reponse_prevision()
+
+    resultat = _client_factice().obtenir_prevision("apres-demain")  # sans accent, comme le STT peut l'écrire
+
+    assert resultat.startswith("Après-demain à Montréal, on prévoit de la pluie légère")
+    assert "60 pour cent de probabilité de précipitations" in resultat
+
+
+@patch("weather.requests.get")
+def test_obtenir_prevision_jour_inconnu_donne_demain(mock_get):
+    mock_get.return_value = _reponse_prevision()
+    assert _client_factice().obtenir_prevision("dans trois mois").startswith("Demain")
+
+
+@patch("weather.requests.get")
+def test_obtenir_prevision_donnees_incompletes_ne_plante_pas(mock_get):
+    reponse = MagicMock()
+    reponse.json.return_value = {"daily": {"weather_code": [0]}}
+    mock_get.return_value = reponse
+
+    assert "erreur" in _client_factice().obtenir_prevision("demain").lower()
+
+
+@patch("weather.requests.get")
+def test_previsions_de_jours_differents_ne_partagent_pas_le_cache(mock_get):
+    mock_get.return_value = _reponse_prevision()
+    client = _client_factice()
+
+    demain = client.obtenir_prevision("demain")
+    apres = client.obtenir_prevision("après-demain")
+    client.obtenir_prevision("demain")
+
+    assert demain != apres
+    assert mock_get.call_count == 2  # le 2e « demain » vient du cache
+
+
+def test_executer_outil_prevision():
+    client = _client_factice()
+    with patch.object(client, "obtenir_prevision", return_value="ok") as prevision:
+        assert client.executer_outil("obtenir_prevision_meteo", {"jour": "après-demain", "ville": "Paris"}) == "ok"
+        prevision.assert_called_once_with(jour="après-demain", ville="Paris")
+        client.executer_outil("obtenir_prevision_meteo", {})
+        prevision.assert_called_with(jour="demain", ville=None)
+
+
+def test_outils_meteo_choisit_la_prevision_pour_demain():
+    """Choix déterministe (pas laissé au LLM) : « demain » ne doit jamais
+    donner la météo actuelle."""
+    assert outils_meteo("Quelle est la météo pour demain ?") == PREVISION_TOOLS
+    assert outils_meteo("Il va pleuvoir demain ?") == PREVISION_TOOLS
+    assert outils_meteo("Quel temps fera-t-il après-demain ?") == PREVISION_TOOLS
+    assert outils_meteo("Quelle est la météo ?") == METEO_ACTUELLE_TOOLS
+    assert outils_meteo("Quelle heure est-il demain ?") is None

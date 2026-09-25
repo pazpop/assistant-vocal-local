@@ -538,7 +538,8 @@ identifier").
 
 ## Météo
 
-Jarvis donne la météo actuelle de `location.city`, via
+Jarvis donne la météo actuelle et la prévision de demain ou d'après-demain
+de `location.city`, via
 [Open-Meteo](https://open-meteo.com) : gratuit, sans clé API ni compte.
 Réservé à un usage **non commercial** (licence CC BY 4.0 des données).
 
@@ -550,12 +551,17 @@ vent.
 
 Demande "quel temps fait-il ?" ou "quel temps fait-il à Paris ?" : le LLM
 appelle `obtenir_meteo` et en extrait la ville si une est mentionnée, sinon
-utilise celle par défaut. `weather.demande_meteo()` détecte la question par
-mots-clés ("météo", "il pleut", "quel temps fait"...) pour l'envoyer via
-`llm.ask_tool_direct`, sans historique ni reformulation par le LLM (voir
+utilise celle par défaut. Si la question parle de "demain" ("quelle est la
+météo pour demain ?", "va-t-il pleuvoir après-demain ?"),
+`weather.outils_meteo()` choisit `obtenir_prevision_meteo` (conditions,
+températures min/max, probabilité de précipitations si ≥ 20 %) : le choix de
+l'outil est fait par mots-clés, pas par le LLM, qui n'extrait que le jour et
+la ville. `weather.demande_meteo()` détecte la question ("météo", "il pleut",
+"quel temps fera"...) pour l'envoyer via `llm.ask_tool_direct`, sans
+historique ni reformulation par le LLM (voir
 [Pourquoi ces choix ?](#pourquoi-ces-choix)).
 
-Une réponse est mise en cache 10 minutes par ville (en mémoire) : une
+Une réponse est mise en cache 10 minutes par ville et par jour (en mémoire) : une
 question répétée dans ce délai ne resollicite pas Open-Meteo, pour rester
 respectueux d'une API gratuite. Seules les réponses réussies sont mises en
 cache, jamais une erreur.
