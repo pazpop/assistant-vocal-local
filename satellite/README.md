@@ -12,7 +12,9 @@ fait tourner Jarvis, via `server/satellite_api.py` — voir
   que pour cette architecture), pilotes du HAT micro/haut-parleur
   installés — voir [RASPBERRY_PI_SETUP.md](RASPBERRY_PI_SETUP.md) si ce
   n'est pas déjà fait.
-- Python 3.11 (déjà présent sur Raspberry Pi OS Bookworm : `python3 --version`).
+- Python 3.11 (Raspberry Pi OS Bookworm) ou 3.13 (Trixie), déjà présent :
+  `python3 --version`. L'installation ci-dessous fonctionne sur les deux
+  (openwakeword y est installé sans `tflite-runtime`, indisponible en 3.13).
 - L'API satellite activée côté serveur (`satellite.enabled: true` dans le
   `config.yml` du PC, avec une `api_key` définie) — voir
   [ARCHITECTURE.md](../ARCHITECTURE.md#api-satellite).
@@ -26,6 +28,7 @@ git clone https://github.com/pazpop/assistant-vocal-local.git
 cd assistant-vocal-local/satellite
 python3 -m venv .venv
 source .venv/bin/activate
+pip install --no-deps openwakeword==0.6.0   # sans ses dépendances : voir requirements.txt
 pip install -r requirements.txt
 cp config.yml.example config.yml
 ```

@@ -3,8 +3,18 @@
 # sur le serveur (voir server/satellite_api.py). Versions figées, alignées
 # sur ../requirements.txt (voir sa note en tête pour le principe).
 
-# Mot-clé
-openwakeword==0.6.0
+# Mot-clé — openwakeword N'EST PAS listé ici : à installer À PART avec
+#   pip install --no-deps openwakeword==0.6.0
+# avant `pip install -r requirements.txt` (voir satellite/README.md).
+# Pourquoi : openwakeword 0.6.0 déclare tflite-runtime comme dépendance sur
+# Linux, mais aucun paquet tflite-runtime n'existe pour Python 3.13 sur
+# aarch64 (Raspberry Pi OS Trixie) → l'install échoue. Le code force déjà
+# inference_framework="onnx" (voir wakeword.py) : tflite n'est jamais utilisé.
+# Ses vraies dépendances d'exécution sont donc listées ci-dessous.
+onnxruntime==1.30.0
+tqdm==4.70.1
+scipy==1.18.1
+scikit-learn==1.9.1
 
 # Audio (capture micro et lecture) — nécessite aussi libportaudio2
 # (système) : voir satellite/README.md.
