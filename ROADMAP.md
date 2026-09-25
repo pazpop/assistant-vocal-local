@@ -70,22 +70,45 @@ Procédure matériel/OS/pilotes :
 
 ## Module musique
 
-- [ ] Jouer une chanson à la voix : « Hey Jarvis, peux-tu mettre la chanson
-  XXX de l'artiste YYY ». Module `music.py` sur le modèle de `weather.py`
-  (outil LLM `jouer_chanson(titre, artiste)`, `music.enabled`, déclencheur
-  par mots-clés). À trancher avant de coder :
-  - **Source** : lecteur local (fichiers musicaux du PC, recherche par
-    titre/artiste, sans compte) ; Spotify (compte Premium + API, contrôle d'un
-    appareil existant) ; ou YouTube Music/`yt-dlp` (gratuit mais zone grise
-    côté conditions d'utilisation).
-  - **Lecture** : sur le PC, et/ou sur le satellite (audio diffusé au Pi,
-    même mécanisme que les notifications).
-  - **Commandes associées** : pause, reprise, suivant, volume, stop. Le
-    micro reste ouvert pendant la lecture : baisser le volume (ou couper)
-    pendant l'écoute du mot-clé pour ne pas le brouiller.
-  - **Fiabilité** : titres et noms d'artistes mal transcrits par le STT ;
-    prévoir une recherche approximative et une confirmation orale
-    (« Je mets X de Y »).
+Objectif : « Hey Jarvis, peux-tu mettre la chanson XXX de l'artiste YYY »,
+lue **sur le satellite**. Module `music.py` sur le modèle de `weather.py`
+(outil LLM `jouer_chanson(titre, artiste)`, `music.enabled`, déclencheur par
+mots-clés), avec une source choisie dans `config.yml` (`music.provider`).
+
+**Sources, par ordre** :
+1. **Subsonic/Navidrome** (choisi pour commencer) : API ouverte (HTTP +
+   JSON), recherche floue côté serveur (`search3`), flux sans DRM (`stream`) ;
+   URL, utilisateur et mot de passe/jeton dans `config.yml`. Navidrome est le
+   serveur le plus léger (PC, NAS ou Pi).
+2. Fichiers locaux du Pi, avec recherche floue (sans serveur).
+3. Spotify Premium via `raspotify` (Spotify Connect sur le Pi, piloté par
+   l'API Web).
+4. Plex : API moins pratique pour la musique, à faire si besoin.
+5. **Apple Music : écarté** : MusicKit demande un compte développeur payant et
+   la lecture est protégée (DRM), inutilisable depuis un Pi.
+
+**Lecture** : le lecteur (`mpv`, avec pause/volume par IPC) tourne sur le
+satellite, qui lit directement le flux de la source. Le serveur envoie des
+commandes au satellite (extension du canal `GET /notifications`, à passer de
+3 s à ~1 s de réactivité).
+
+**Commandes** : pause, reprise, suivant, volume, stop.
+
+**Mot-clé pendant la musique** : le micro reste ouvert ; à « Hey Jarvis », le
+satellite met la musique en pause lui-même (instantané, sans serveur) et la
+reprend après la conversation, sauf si une commande musicale a été donnée.
+Risque : sans annulation d'écho, le HAT détecte moins bien le mot-clé à volume
+élevé ; baisser le volume, à essayer sur le matériel.
+
+**Titres (important)** : le STT déforme titres et artistes. Recherche floue
+(côté Subsonic), confirmation orale (« Je mets X de Y »), et piste à mesurer :
+passer les noms d'artistes de la bibliothèque à Whisper (`initial_prompt`).
+
+- [ ] Fournisseur Subsonic/Navidrome (recherche + URL de flux).
+- [ ] Lecteur `mpv` sur le satellite et canal de commandes serveur → satellite.
+- [ ] Outil LLM `jouer_chanson`, commandes de contrôle, confirmation orale.
+- [ ] Pause au mot-clé, reprise après la conversation.
+- [ ] Autres fournisseurs (fichiers locaux, Spotify/raspotify, Plex).
 
 ## Idées à l'étude
 
