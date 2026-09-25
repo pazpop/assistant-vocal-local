@@ -156,19 +156,12 @@ Deux cas distincts, avec un message différent au démarrage :
 cœur (bibliothèque standard uniquement, aucun mode d'échec), toujours
 actives.
 
-**Au démarrage** : `launch.py` imprime `==== Core ====` (Ollama, version,
-lancement de Jarvis et d'Open WebUI). `main.py` imprime `==== Modules ====`
-juste avant ses propres lignes de statut (domotique/météo/alertes/
-dashboard, avec plus de détail que juste actif/inactif — ex: la ville pour
-la météo), puis rappelle l'état d'Open WebUI et de la vérification de
-version ("géré par launch.py", puisque `main.py` ne les démarre pas).
-
-Deux blocs séparés plutôt qu'un seul : `launch.py` et `main.py` sont deux
-process qui écrivent dans la même console sans se synchroniser, et capturer
-la sortie de Jarvis pour la réordonner casserait le streaming caractère par
-caractère de ses réponses en conversation (`parler_en_flux`, flush à chaque
-fragment). Le regroupement suit donc ce que chaque process contrôle
-réellement, pas un ordre chronologique strict.
+**Au démarrage**, `launch.py` imprime `==== Core ====` (Ollama, version,
+lancement de Jarvis et d'Open WebUI) et `main.py` `==== Modules ====` (état
+de chaque module, avec plus de détail : ex. la ville pour la météo). Deux
+blocs plutôt qu'un : ce sont deux process qui écrivent dans la même console,
+et capturer la sortie de Jarvis pour la réordonner casserait le streaming de
+ses réponses.
 
 ## Installation
 
@@ -210,27 +203,11 @@ la fenêtre ouverte), pour double-cliquer sans rien taper.
 6. **Ne lance jamais `launch.py`** : affiche la commande à taper, pour que
    le premier lancement (qui capture le micro) reste un geste délibéré.
 
-Rafraîchit le `PATH` de la session après chaque install winget (sinon la
-commande fraîchement installée reste invisible tant que PowerShell n'est
-pas relancé). Ne vaut que pour la session d'`install.ps1` elle-même — un
-terminal déjà ouvert (ex: celui d'où `launch.py` est lancé juste après) ne
-le voit pas tant qu'il n'est pas rouvert. `launch.py` fait le même
-rafraîchissement de son côté (voir plus bas), donc ça ne se reproduit plus
-une fois Jarvis démarré via `launch.py`.
-
-La vérification qu'Ollama répond avant de tirer le modèle utilise une
-connexion TCP brute (`System.Net.Sockets.TcpClient`), pas
-`Invoke-WebRequest` : plus légère, et sans le risque de rester bloquée sans
-lever d'exception que ce dernier a montré dans certaines conditions.
-
-**La fenêtre reste ouverte, succès ou erreur.** Lancé via clic droit >
-"Exécuter avec PowerShell" (ou `install.bat`), la fenêtre se ferme *seule*
-dès que le script se termine — impossible de lire le dernier message sinon
-(commande pour lancer Jarvis, ou erreur). Tout le corps du script est dans
-un `try/catch` global qui appelle `Quitter` (`Read-Host` puis `exit`) dans
-les deux cas — les erreurs utilisent `throw`, jamais `Write-Error`
-(incompatible avec `$ErrorActionPreference = "Stop"` en tête du script,
-qui le rendrait bloquant avant d'atteindre la pause).
+`install.ps1` rafraîchit le `PATH` de sa session après chaque install winget
+(sinon la commande fraîche reste invisible) ; `launch.py` fait de même à son
+démarrage. La fenêtre reste ouverte en cas de succès comme d'erreur (un
+`try/catch` global suivi d'une pause), et un échec de `pip`, `ollama pull` ou
+du téléchargement de la voix arrête le script avec un message.
 
 ## Vérification de version
 
@@ -344,60 +321,29 @@ s'applique.
 
 ### Purger les données d'Open WebUI
 
-Deux commandes séparées, pour deux besoins différents — `launch.py` quitte
-juste après, sans démarrer la stack :
+Actes destructifs : **options de lancement** à taper à chaque fois, jamais
+un réglage de `config.yml` (un interrupteur qu'on oublie d'avoir activé
+effacerait tout en silence). Chacune demande confirmation (`--yes` pour
+l'ignorer).
 
-- **`python launch.py --purge-webui`** : reset complet. Supprime
-  `openwebui/data/` entier (historique de chat, comptes, fichiers uploadés,
-  index vectoriel) — recréé de zéro au prochain lancement (nouveau compte
-  admin à recréer). Aucun prérequis.
-- **`python launch.py --purge-webui-memory`** : efface uniquement la
-  fonction **Memory** d'Open WebUI (les faits qu'il retient sur toi entre
-  les conversations, Réglages > Personnalisation > Mémoire) — laisse
-  l'historique de chat et les comptes intacts. Passe par l'API officielle
-  d'Open WebUI (`DELETE /api/v1/memories/delete/user`), pas par une
-  manipulation directe de `webui.db`. Prérequis :
-  1. Open WebUI déjà lancé (`python launch.py`, dans un autre terminal).
-  2. **Autoriser les clés API** dans Panneau d'administration > Réglages > Général.
-  3. Générer une clé dans Réglages > Compte > Clés API, et la coller dans
-     `config.yml` sous `open_webui.api_key`.
+| Option | Effet |
+|---|---|
+| `--purge-webui` | Reset complet : supprime `openwebui/data/` (chats, comptes, fichiers, index). Quitte ensuite. |
+| `--purge-webui-memory` | Efface seulement la fonction Memory (API `DELETE /api/v1/memories/delete/user`). Quitte ensuite. |
+| `--purge-webui-on-start` | Purge complète juste avant de lancer Open WebUI, puis démarre la stack. |
+| `--purge-webui-memory-on-start` | Démarre la stack, attend `/health` (60 s max), puis purge la mémoire. Sans réponse ou sans `api_key`, un avertissement s'affiche et le démarrage continue. |
 
-Les quatre demandent une confirmation avant d'agir (`y`/`N`) — passe `--yes`
-pour l'ignorer (utile dans un script).
+Prérequis de la purge mémoire : Open WebUI lancé, « Autoriser les clés API »
+activé (Panneau d'administration > Réglages > Général), et une clé (Réglages
+> Compte > Clés API) collée dans `open_webui.api_key`. Les deux purges
+combinées : la complète efface aussi la clé API, `launch.py` saute donc la
+purge mémoire avec un message.
 
-**Volontairement pas dans `config.yml`** : purger est un acte destructif —
-un interrupteur qui efface tout silencieusement à chaque démarrage est le
-genre de réglage qu'on oublie d'avoir activé, jusqu'au jour où on perd un
-historique auquel on tenait. Ces deux variantes existent pour purger *en
-même temps* que tu démarres la stack (au lieu de purger puis quitter comme
-`--purge-webui`/`--purge-webui-memory`), mais restent des options à taper
-explicitement à chaque fois :
-
-- **`python launch.py --purge-webui-on-start`** : purge complète juste avant
-  de lancer Open WebUI, puis démarre la stack normalement.
-- **`python launch.py --purge-webui-memory-on-start`** : démarre la stack,
-  attend qu'Open WebUI réponde sur `/health` (jusqu'à 60s), puis purge sa
-  mémoire. Si `api_key` est vide ou qu'Open WebUI ne répond pas à temps, un
-  avertissement s'affiche et **le reste du démarrage continue normalement**
-  (jamais bloquant pour Jarvis).
-
-**Deux purges combinées en même temps ?** (`--purge-webui` +
-`--purge-webui-memory`, ou `--purge-webui-on-start` +
-`--purge-webui-memory-on-start`) : la purge complète efface `webui.db` en
-entier, donc aussi la table qui contient la clé API — la clé de
-`config.yml` devient invalide sur cette instance neuve, et `--purge-webui`
-ne démarre de toute façon rien (pas de serveur à appeler). `launch.py`
-détecte les deux cas et **saute la purge mémoire** (redondante : tout est
-déjà vide) avec un message explicite, plutôt que de laisser un appel API
-échouer silencieusement ou sans explication.
-
-**`qwen2.5-coder` qui "code" en appelant des outils au lieu de répondre** :
-symptôme d'un system prompt pollué par des exemples d'outils Jarvis
-(probablement copiés-collés depuis ce README dans un prompt système global
-d'Open WebUI). Corrige dans **Espace de travail > Modèles > Créer un
-modèle**, basé sur `qwen2.5-coder:7b`, avec son propre system prompt
-(vide/neutre) — plutôt que de modifier le prompt système par défaut global
-ou la base SQLite d'Open WebUI directement.
+**`qwen2.5-coder` qui recrache des appels d'outils au lieu de coder** : ce
+sont les « Outils intégrés » d'Open WebUI (tâches, mémoire, recherche web...),
+injectés par défaut à tous les modèles. Crée un modèle personnalisé
+(**Espace de travail > Modèles**) avec **Capacités > Outils intégrés**
+décoché.
 
 ## Domotique : Home Assistant en local
 
@@ -429,6 +375,9 @@ HA, ce chemin continue de fonctionner en parallèle, indépendamment de Jarvis.
 `device_aliases` (ou de l'`entity_id` à défaut), pas d'une reformulation par
 le LLM — un peu moins naturel, mais toujours fidèle à ce qui s'est vraiment
 passé.
+Home Assistant répond 200 même pour un `entity_id` inexistant : dans ce cas
+(liste de changements vide), Jarvis vérifie l'entité et dit « Je ne trouve
+pas l'appareil … » plutôt que de confirmer une action sans effet.
 
 **Le nom ne correspond pas à ce que tu dis à voix haute ?** Le LLM voit le
 `friendly_name` Home Assistant de chaque appareil — souvent redondant pour
@@ -491,7 +440,9 @@ termine :
   traité comme une question.
 - **Silence** : si tu ne dis rien dans les `conversation.followup_timeout`
   secondes (6s par défaut) qui suivent sa réponse, Jarvis repasse en veille
-  sans un mot.
+  sans un mot. Idem après le mot-clé si personne ne parle dans les
+  `conversation.first_timeout` secondes (8s) : un faux déclenchement ne
+  bloque pas le micro.
 - **Incompréhension** : si le STT ne parvient pas à transcrire ce que tu as
   dit, Jarvis le dit à voix haute ("Désolé, je n'ai pas compris. Je repasse
   en veille.") plutôt que de repasser en veille silencieusement.

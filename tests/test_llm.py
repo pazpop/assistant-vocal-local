@@ -227,3 +227,17 @@ def test_ask_tool_direct_sans_appel_d_outil_appelle_loutil_lui_meme():
         )
 
     assert fragments == ["Nous sommes le lundi 14 septembre 2026."]
+
+
+def test_ask_tool_direct_sans_parametre_n_appelle_pas_le_llm():
+    """Aucun argument à extraire (ex: alertes météo) : un aller-retour LLM
+    ne ferait que retarder la réponse."""
+    lm = _lm_factice()
+    outil = [{"type": "function", "function": {"name": "alerte", "parameters": {"type": "object", "properties": {}}}}]
+
+    with patch("llm.ollama.chat") as mock_chat:
+        fragments = list(lm.ask_tool_direct("y a-t-il une alerte ?", tools=outil, tool_executor=lambda n, a: "Aucune."))
+
+    assert fragments == ["Aucune."]
+    mock_chat.assert_not_called()
+    assert lm.history[-1] == {"role": "assistant", "content": "Aucune."}

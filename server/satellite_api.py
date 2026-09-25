@@ -27,6 +27,7 @@ import io
 import secrets
 import struct
 import threading
+import time
 import wave
 from collections import deque
 from typing import Callable, Iterable, Iterator
@@ -200,11 +201,21 @@ def creer_app(
 
 
 def demarrer(stt, tts, repondre_flux, boite: BoiteNotifications) -> str:
-    """Lance l'API dans un thread à part (démon), retourne son URL."""
+    """Lance l'API dans un thread à part (démon), retourne son URL. Lève
+    RuntimeError si elle n'a pas démarré (ex: port déjà pris)."""
     app = creer_app(stt, tts, repondre_flux, boite)
     conf = uvicorn.Config(
         app, host=config.SATELLITE_HOST, port=config.SATELLITE_PORT, log_level="warning"
     )
     serveur = uvicorn.Server(conf)
-    threading.Thread(target=serveur.run, daemon=True).start()
-    return f"http://{config.SATELLITE_HOST}:{config.SATELLITE_PORT}/assistant"
+    fil = threading.Thread(target=serveur.run, daemon=True)
+    fil.start()
+    for _ in range(50):  # jusqu'à 5 s
+        if serveur.started or not fil.is_alive():
+            break
+        time.sleep(0.1)
+    if not serveur.started:
+        raise RuntimeError(f"le port {config.SATELLITE_PORT} est peut-être déjà utilisé")
+    # 0.0.0.0 n'est pas une adresse joignable : c'est celle du PC qu'il faut donner au satellite.
+    hote = "<IP-de-ce-PC>" if config.SATELLITE_HOST == "0.0.0.0" else config.SATELLITE_HOST
+    return f"http://{hote}:{config.SATELLITE_PORT}/assistant"

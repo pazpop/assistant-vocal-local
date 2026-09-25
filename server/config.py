@@ -74,6 +74,8 @@ MAX_RECORD_SECONDS = _get("audio.max_record_seconds", 15)
 AUDIO_INPUT_DEVICE = _get("audio.input_device", None)
 
 # --- Conversation continue (enchaîner sans redire "Hey Jarvis") ---
+# Délai max sans parole après le mot-clé (un faux déclenchement ne bloque pas le micro)
+CONVERSATION_FIRST_TIMEOUT = _get("conversation.first_timeout", 8.0)
 CONVERSATION_FOLLOWUP_TIMEOUT = _get("conversation.followup_timeout", 6.0)
 # Phrases qui terminent la conversation continue (comparaison en minuscules)
 CONVERSATION_END_PHRASES = (

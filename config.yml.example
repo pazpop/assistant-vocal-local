@@ -38,6 +38,9 @@ conversation:
   # Secondes d'attente d'une suite avant de repasser en veille (conversation
   # continue : pas besoin de redire "Hey Jarvis" entre deux questions).
   followup_timeout: 6.0
+  # Secondes sans parole après le mot-clé avant d'abandonner (faux
+  # déclenchement : le micro ne reste pas bloqué).
+  first_timeout: 8.0
   # Phrase dite dès que le mot-clé est détecté, pour confirmer que Jarvis
   # écoute.
   wake_word_prompt: "Oui, comment puis-je vous aider ?"
@@ -172,13 +175,9 @@ open_webui:
   # les clés API" dans Panneau d'administration > Réglages > Général. Vide =
   # fonctionnalité indisponible (message clair si tu tentes de l'utiliser).
   api_key: ""
-  # Purger les données d'Open WebUI (reset complet, ou juste la fonction
-  # Memory) n'est volontairement PAS un réglage ici : un interrupteur qui
-  # efface tout silencieusement à chaque démarrage est le genre de chose
-  # qu'on oublie d'avoir activé. C'est une option de lancement à taper
-  # explicitement à chaque fois — voir `python launch.py --help`
-  # (--purge-webui-on-start / --purge-webui-memory-on-start) et
-  # ARCHITECTURE.md.
+  # Purger les données d'Open WebUI n'est volontairement pas un réglage :
+  # c'est une option de lancement (`python launch.py --help`).
+
 
 update_check:
   # launch.py compare le commit local à celui de `main` sur GitHub au

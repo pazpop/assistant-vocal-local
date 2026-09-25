@@ -111,7 +111,8 @@ class DetecteurFinParole:
 
 
 def record_until_silence(debug: bool = False) -> Enregistrement:
-    """Enregistre le micro jusqu'à un silence prolongé (ou max_record_seconds).
+    """Enregistre le micro jusqu'à un silence prolongé (ou max_record_seconds,
+    ou no_speech_timeout si personne ne parle : faux déclenchement du mot-clé).
 
     `.audio` est un tableau numpy mono float32 normalisé dans [-1, 1] — même
     format que server/audio_io.py — ou un tableau vide si aucune parole n'a
@@ -120,6 +121,7 @@ def record_until_silence(debug: bool = False) -> Enregistrement:
     duree_bloc = BLOCK_SIZE / sample_rate
     silence_blocks_needed = max(1, round(config.SILENCE_DURATION / duree_bloc))
     max_blocks = max(1, round(config.MAX_RECORD_SECONDS / duree_bloc))
+    no_speech_blocks = max(1, round(config.NO_SPEECH_TIMEOUT / duree_bloc))
 
     detecteur = DetecteurFinParole(config.SILENCE_THRESHOLD, silence_blocks_needed)
     audio_chunks = []
@@ -164,6 +166,8 @@ def record_until_silence(debug: bool = False) -> Enregistrement:
                 )
 
             if detecteur.fini:
+                break
+            if not detecteur.parole_commencee and indice_bloc + 1 >= no_speech_blocks:
                 break
 
     if debug:

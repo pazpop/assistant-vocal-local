@@ -151,15 +151,30 @@ class HomeAssistantClient:
             url, json=payload, headers=self.headers, timeout=5, verify=self.verify_ssl
         )
         reponse.raise_for_status()
+        nom = config.HA_DEVICE_ALIASES.get(entity_id, entity_id)
+        try:
+            changements = reponse.json()
+        except ValueError:
+            changements = None
+        # HA répond 200 même pour une entité inexistante (liste vide) : on
+        # vérifie, pour ne jamais confirmer une action qui n'a rien fait.
+        if changements == [] and not self._entite_existe(entity_id):
+            return f"Je ne trouve pas l'appareil {nom} dans Home Assistant."
         # Directement parlable (utilisé tel quel par llm.ask_tool_direct, sans
         # reformulation LLM) : nom court si un alias existe dans config.yml,
         # sinon l'entity_id brut. Volontairement sans accord grammatical
         # (masculin/féminin dépend de l'appareil, pas connu ici) : préférer
         # une confirmation fiable et sans ambiguïté à une formulation plus
         # élégante mais qui obligerait à redemander au LLM.
-        nom = config.HA_DEVICE_ALIASES.get(entity_id, entity_id)
         etat = "allumé" if service == "turn_on" else "éteint"
         return f"{nom} : {etat}."
+
+    def _entite_existe(self, entity_id: str) -> bool:
+        reponse = requests.get(
+            f"{self.base_url}/api/states/{entity_id}",
+            headers=self.headers, timeout=5, verify=self.verify_ssl,
+        )
+        return reponse.status_code != 404
 
     def lister_appareils(self, domaine: str) -> list[dict]:
         """Récupère tous les appareils d'un domaine Home Assistant (ex: 'light')."""

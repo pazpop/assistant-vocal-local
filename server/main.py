@@ -365,8 +365,11 @@ def main() -> None:
                 f"(min. {satellite_api.CLE_API_LONGUEUR_MIN} caractères, voir generate_api_key.py)."
             )
         else:
-            url_satellite = satellite_api.demarrer(stt, tts, repondre_flux, boite_notifications)
-            print(f"📡 API satellite : {url_satellite}")
+            try:
+                url_satellite = satellite_api.demarrer(stt, tts, repondre_flux, boite_notifications)
+                print(f"📡 API satellite : {url_satellite}")
+            except RuntimeError as exc:
+                print(f"⚠️  API satellite désactivée : {exc}.")
     else:
         print("⏸️  API satellite désactivée (satellite.enabled: false).")
 
@@ -401,7 +404,9 @@ def main() -> None:
             resultat_ecoute = {"audio": np.zeros(0, dtype=np.float32)}
 
             def _ecouter_pendant_la_salutation() -> None:
-                resultat_ecoute["audio"] = record_until_silence(vad, debug=args.debug_audio)
+                resultat_ecoute["audio"] = record_until_silence(
+                    vad, debug=args.debug_audio, no_speech_timeout=config.CONVERSATION_FIRST_TIMEOUT
+                )
 
             thread_ecoute = threading.Thread(target=_ecouter_pendant_la_salutation, daemon=True)
             thread_ecoute.start()

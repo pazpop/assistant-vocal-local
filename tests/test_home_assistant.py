@@ -71,3 +71,38 @@ def test_demande_domotique_detecte_allumer_et_eteindre():
     assert demande_domotique("Éteins la lumière de la cuisine") == "eteindre"
     assert demande_domotique("Peux-tu éteindre le salon ?") == "eteindre"
     assert demande_domotique("Quel temps fait-il ?") is None
+
+
+def _client_reseau() -> HomeAssistantClient:
+    client = HomeAssistantClient.__new__(HomeAssistantClient)
+    client.base_url = "http://ha.local"
+    client.verify_ssl = True
+    client.headers = {}
+    return client
+
+
+def test_entite_inexistante_n_est_jamais_confirmee():
+    """HA répond 200 + liste vide pour un entity_id qui n'existe pas : dire
+    « allumé » serait faux."""
+    appel = MagicMock(json=MagicMock(return_value=[]))
+    absente = MagicMock(status_code=404)
+    with patch("home_assistant.requests.post", return_value=appel), patch(
+        "home_assistant.requests.get", return_value=absente
+    ):
+        resultat = _client_reseau()._appeler_service("light", "turn_on", "light.fantome")
+
+    assert "ne trouve pas" in resultat
+    assert "allumé" not in resultat
+
+
+def test_appareil_deja_dans_l_etat_demande_reste_confirme():
+    """Liste vide aussi quand rien ne change (déjà allumé) : l'entité existe,
+    la confirmation reste juste."""
+    appel = MagicMock(json=MagicMock(return_value=[]))
+    presente = MagicMock(status_code=200)
+    with patch("home_assistant.requests.post", return_value=appel), patch(
+        "home_assistant.requests.get", return_value=presente
+    ):
+        resultat = _client_reseau()._appeler_service("light", "turn_on", "light.salon")
+
+    assert resultat == "light.salon : allumé."

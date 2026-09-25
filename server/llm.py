@@ -129,23 +129,28 @@ class LanguageModel:
         reformuler. Sinon qwen2.5:7b invente parfois un gabarit non rempli
         ("[jour], [mois]") ou bascule en anglais.
 
-        Le LLM ne sert qu'à extraire les arguments : s'il répond en texte
-        libre sans appeler l'outil, ce texte est ignoré (hallucination) et
-        l'outil est appelé sans argument. `tools` ne contient donc qu'un
+        Le LLM ne sert qu'à extraire les arguments (et n'est même pas appelé
+        pour un outil sans paramètre) : s'il répond en texte libre sans
+        appeler l'outil, ce texte est ignoré (hallucination) et l'outil est
+        appelé sans argument. `tools` ne contient donc qu'un
         seul outil, dont l'exécuteur gère proprement un argument manquant.
 
         Jamais d'historique envoyé au modèle : sur une question de suivi,
         qwen2.5:7b répond "de mémoire" au lieu de rappeler l'outil (valeur
         périmée, ou confirmation d'action jamais exécutée). Le tour reste
         mémorisé pour la suite (voir _enregistrer_echange)."""
-        messages = [self._system_message, {"role": "user", "content": question}]
-        response = ollama.chat(
-            model=self.model, messages=messages, tools=tools, keep_alive=config.LLM_KEEP_ALIVE
-        )
-        message = response["message"]
-        tool_calls = message.get("tool_calls") or [
-            {"function": {"name": tools[0]["function"]["name"], "arguments": {}}}
-        ]
+        def appel_sans_argument() -> list[dict]:
+            return [{"function": {"name": tools[0]["function"]["name"], "arguments": {}}}]
+
+        if tools[0].get("function", {}).get("parameters", {}).get("properties") == {}:
+            # Aucun paramètre à extraire : le LLM n'aurait rien à décider.
+            tool_calls = appel_sans_argument()
+        else:
+            messages = [self._system_message, {"role": "user", "content": question}]
+            response = ollama.chat(
+                model=self.model, messages=messages, tools=tools, keep_alive=config.LLM_KEEP_ALIVE
+            )
+            tool_calls = response["message"].get("tool_calls") or appel_sans_argument()
 
         if on_tool_call is not None:
             on_tool_call()

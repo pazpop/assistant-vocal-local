@@ -48,3 +48,5 @@ audio:
   silence_duration: 1.0
   # Durée max d'une question, en secondes (sécurité anti-boucle infinie).
   max_record_seconds: 15
+  # Abandonne si personne ne parle après ce délai (faux déclenchement du mot-clé).
+  no_speech_timeout: 8
