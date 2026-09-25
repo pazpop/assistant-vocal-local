@@ -3,8 +3,9 @@ envoie l'audio enregistré, reçoit la réponse (déjà synthétisée par Piper 
 serveur) phrase par phrase, chacune à jouer dès qu'elle arrive."""
 import io
 import struct
+import time
 import wave
-from typing import Iterable, Iterator
+from typing import Callable, Iterable, Iterator
 
 import numpy as np
 import requests
@@ -58,15 +59,35 @@ def _extraire_trames(morceaux: Iterable[bytes]) -> Iterator[bytes]:
         )
 
 
-def demander(audio: np.ndarray) -> Iterator[tuple[np.ndarray, int]]:
+def demander(
+    audio: np.ndarray, signaler: Callable[..., None] = lambda etape, **infos: None
+) -> Iterator[tuple[np.ndarray, int]]:
     """Envoie l'audio enregistré au serveur, puis produit (audio, sample_rate)
     pour chaque phrase de la réponse, dès qu'elle arrive : à l'appelant
     (main.py) de la jouer pendant que le serveur prépare la suite. Lève
     requests.RequestException (à l'itération, pas à l'appel) si le serveur est
     injoignable, rejette la clé API, renvoie une erreur ou coupe le flux en
     cours de route — à l'appelant de décider quoi faire (ex: annoncer l'échec
-    et continuer)."""
+    et continuer).
+
+    `signaler(etape, **infos)` est appelé à chaque étape (wav_cree, envoi,
+    transcription_finie, premiere_phrase — voir chrono.formater_etape) pour
+    montrer où passe le temps.
+
+    Le serveur envoie les en-têtes de sa réponse dès que la transcription est
+    faite (avant même que le LLM ait commencé) : requests.post(stream=True)
+    rend la main à ce moment-là, ce qui donne la durée envoi + transcription."""
+    debut_encodage = time.perf_counter()
     wav = _audio_vers_wav(audio, config.SAMPLE_RATE)
+    signaler(
+        "wav_cree",
+        duree_audio=audio.size / config.SAMPLE_RATE,
+        octets=len(wav),
+        duree_encodage=time.perf_counter() - debut_encodage,
+    )
+
+    signaler("envoi")
+    instant_envoi = time.perf_counter()
     with requests.post(
         config.SERVER_URL,
         headers={"X-API-Key": config.SERVER_API_KEY},
@@ -75,5 +96,17 @@ def demander(audio: np.ndarray) -> Iterator[tuple[np.ndarray, int]]:
         stream=True,
     ) as reponse:
         reponse.raise_for_status()
+        instant_transcription = time.perf_counter()
+        signaler("transcription_finie", depuis_envoi=instant_transcription - instant_envoi)
+
+        premiere = True
         for wav_phrase in _extraire_trames(reponse.iter_content(chunk_size=None)):
+            if premiere:
+                maintenant = time.perf_counter()
+                signaler(
+                    "premiere_phrase",
+                    depuis_envoi=maintenant - instant_envoi,
+                    depuis_transcription=maintenant - instant_transcription,
+                )
+                premiere = False
             yield _wav_vers_audio(wav_phrase)

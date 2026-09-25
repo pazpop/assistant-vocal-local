@@ -12,10 +12,20 @@ import sys
 
 import requests
 
+import chrono
 import client_api
 import config
 from audio_io import generer_bip, play_audio, record_until_silence
 from wakeword import WakeWordDetector
+
+
+def afficher_etape(etape: str, **infos: float) -> None:
+    """Affiche, au fil de l'échange, chaque étape avec son temps (voir
+    chrono.formater_etape) : pour voir ce qui est long entre la fin de la
+    question et le début de la réponse."""
+    ligne = chrono.formater_etape(etape, **infos)
+    if ligne:
+        print(ligne, flush=True)
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,22 +66,41 @@ def main() -> None:
             print("🎤 Mot-clé détecté, je t'écoute...")
             play_audio(bip, config.SAMPLE_RATE)
 
-            audio = record_until_silence(debug=args.debug_audio)
-            if audio.size == 0:
-                print("→ Aucun audio capté, retour en veille.\n")
+            enregistrement = record_until_silence(debug=args.debug_audio)
+            if enregistrement.audio.size == 0:
+                print(
+                    f"→ Aucun audio capté ({enregistrement.duree_s:.1f} s d'écoute), "
+                    "retour en veille.\n"
+                )
                 continue
 
-            print("Envoi au serveur...")
+            print(
+                chrono.resumer_enregistrement(
+                    duree_s=enregistrement.duree_s,
+                    debut_parole_s=enregistrement.debut_parole_s,
+                    fin_parole_s=enregistrement.fin_parole_s,
+                    coupe_par_duree_max=enregistrement.coupe_par_duree_max,
+                    duree_max_s=config.MAX_RECORD_SECONDS,
+                )
+            )
+
+            nb_phrases = 0
+            duree_lue = 0.0
             try:
                 # Chaque phrase est jouée dès qu'elle arrive, pendant que le
                 # serveur prépare la suivante (elle attend dans le tampon réseau
                 # pendant que la précédente joue : pas de trou entre deux).
-                for phrase_audio, sample_rate in client_api.demander(audio):
+                for phrase_audio, sample_rate in client_api.demander(
+                    enregistrement.audio, signaler=afficher_etape
+                ):
                     play_audio(phrase_audio, sample_rate)
+                    nb_phrases += 1
+                    duree_lue += phrase_audio.size / sample_rate
             except requests.RequestException as exc:
                 print(f"⚠️  Échange avec le serveur interrompu : {exc}\n")
                 continue
 
+            print(f"🔈 Réponse jouée : {nb_phrases} phrase(s), {duree_lue:.1f} s d'audio")
             print("En veille.\n")
 
         except KeyboardInterrupt:
