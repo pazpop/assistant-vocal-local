@@ -7,6 +7,15 @@ module. Pour l'installation et le démarrage rapide, voir le
 
 ## Schéma
 
+Deux types d'hôtes. Le **serveur** (ici un PC Windows) fait tout le
+traitement. Un ou plusieurs **satellites** (Raspberry Pi, optionnels) ne
+font que capter la voix et jouer la réponse.
+
+### Serveur (exemple : PC Windows)
+
+Les composants ci-dessous tournent tous sur le PC. Sans satellite, le micro et
+les haut-parleurs sont ceux du PC.
+
 ```mermaid
 flowchart LR
     Mic([🎙️ Micro]) --> WW["openWakeWord<br/>'Hey Jarvis'"]
@@ -30,7 +39,7 @@ flowchart LR
     TTS --> API
 ```
 
-| Composant | Technologie | Rôle |
+| Composant (serveur) | Technologie | Rôle |
 |---|---|---|
 | Mot-clé | [openWakeWord](https://github.com/dscripka/openWakeWord) | Détection de "Hey Jarvis", en continu, en local |
 | VAD | [Silero VAD](https://github.com/snakers4/silero-vad) | Détecte le début/la fin de la parole (pas un simple seuil de volume) |
@@ -45,6 +54,44 @@ flowchart LR
 | Panneau de ressources | `http.server` (bibliothèque standard) | Suivi CPU/RAM/VRAM/latences, `127.0.0.1` uniquement |
 | Open WebUI | [Open WebUI](#open-webui) (optionnel, lancé par `launch.py`) | Interface web de conversation par-dessus Ollama, indépendante de Jarvis |
 | API satellite | [FastAPI](#api-satellite) (optionnelle, `server/satellite_api.py`) | Expose STT+LLM+TTS+outils en REST au client Raspberry Pi (`satellite/`) |
+
+### Raspberry Pi (satellite)
+
+Client léger (`satellite/`) : aucun modèle de langage, de transcription ni de
+synthèse ici. Il détecte le mot-clé, enregistre la question, l'envoie au
+serveur ([API satellite](#api-satellite)) et joue ce qu'il reçoit. Matériel :
+Raspberry Pi 4 + HAT micro ReSpeaker 2-Mics ([installation](satellite/RASPBERRY_PI_SETUP.md)).
+
+```mermaid
+flowchart LR
+    Mic(["🎙️ Micro<br/>HAT ReSpeaker"]) --> WW["openWakeWord<br/>'Hey Jarvis' (ONNX)"]
+    WW -->|détecté| BIP["🔔 Bip de confirmation"]
+    WW --> REC["Enregistrement<br/>seuil RMS adaptatif au bruit"]
+    REC -->|WAV mono 16 kHz| CLI["client_api<br/>HTTP + clé API + zone"]
+    CLI -->|POST /assistant| SRV["🖥️ Serveur<br/>STT → LLM → TTS"]
+    SRV -->|flux de trames WAV,<br/>une par phrase| CLI
+    CLI --> PLAY["Lecteur audio<br/>phrase par phrase"]
+    NOTIF["Thread notifications<br/>toutes les 3 s"] <-->|GET /notifications<br/>minuteur terminé...| SRV
+    NOTIF --> PLAY
+    BIP --> PLAY
+    PLAY --> SPK([🔊 Haut-parleur])
+    REC -.->|temps par étape| CHR["chrono<br/>affichage console"]
+    CLI -.->|temps par étape| CHR
+    CFG[("config.yml<br/>URL, clé, zone, seuils")] -.-> CLI
+    SYS["systemd<br/>démarrage auto, redémarrage"] -.->|lance| MAIN["main.py<br/>boucle mot-clé → envoi → lecture"]
+```
+
+| Composant (Raspberry Pi) | Technologie | Rôle |
+|---|---|---|
+| Micro / haut-parleur | HAT [ReSpeaker 2-Mics](satellite/RASPBERRY_PI_SETUP.md), `sounddevice` (PortAudio) | Capture et lecture audio |
+| Mot-clé | [openWakeWord](https://github.com/dscripka/openWakeWord) (ONNX, `onnxruntime`) | Détection de "Hey Jarvis", en continu, en local |
+| Fin de parole | Seuil RMS adaptatif (`numpy`, `audio_io.py`) | Pas de VAD Silero : trop lourd sur un Pi (voir [Client](#client-satellite)) |
+| Envoi / réception | `requests` (`client_api.py`) | Envoie le WAV (`POST /assistant`), reçoit les phrases en flux |
+| Notifications | Thread de fond (`main.py`) | Réclame au serveur les sons en attente (minuteurs) et les joue |
+| Temps par étape | `chrono.py` | Affiche où passe le temps après chaque question |
+| Configuration | `satellite/config.yml` | URL du serveur, clé API, zone, seuils audio |
+| Démarrage automatique | `systemd` ([README](satellite/README.md#démarrage-automatique-systemd)) | Lance `main.py` au boot et le relance en cas de plantage |
+
 
 ## Pourquoi ces choix ?
 
