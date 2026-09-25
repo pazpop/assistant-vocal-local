@@ -47,6 +47,7 @@ CLE_API_LONGUEUR_MIN = 16
 DUREE_MAX_QUESTION_S = 60  # bien au-dessus des 15 s de satellite.max_record_seconds
 TAILLE_MAX_QUESTION = DUREE_MAX_QUESTION_S * config.SAMPLE_RATE * 2 + 1024
 NOTIFICATIONS_MAX_PAR_ZONE = 20
+NOTIFICATION_VALIDITE_S = 600  # un minuteur qui sonne 3 h en retard (Pi éteint) n'a plus de sens
 ZONE_PAR_DEFAUT = "satellite"
 
 
@@ -117,21 +118,25 @@ def _trames_reponse(tts, fragments: Iterable[str]) -> Iterator[bytes]:
 class BoiteNotifications:
     """Sons à livrer à un satellite (minuteur terminé...), par zone. Le
     satellite les récupère avec `GET /notifications` ; au-delà de
-    NOTIFICATIONS_MAX_PAR_ZONE, les plus anciennes sont abandonnées."""
+    NOTIFICATIONS_MAX_PAR_ZONE ou de NOTIFICATION_VALIDITE_S, elles sont
+    abandonnées."""
 
     def __init__(self) -> None:
         self._verrou = threading.Lock()
-        self._par_zone: dict[str, deque[bytes]] = {}
+        self._par_zone: dict[str, deque[tuple[float, bytes]]] = {}
 
     def deposer(self, zone: str, audio: np.ndarray, sample_rate: int) -> None:
         trame = _trame(_audio_vers_wav(audio, sample_rate))
         with self._verrou:
-            self._par_zone.setdefault(zone, deque(maxlen=NOTIFICATIONS_MAX_PAR_ZONE)).append(trame)
+            self._par_zone.setdefault(zone, deque(maxlen=NOTIFICATIONS_MAX_PAR_ZONE)).append(
+                (time.monotonic(), trame)
+            )
 
     def retirer(self, zone: str) -> bytes:
         """Toutes les trames en attente pour `zone` (b"" s'il n'y en a pas)."""
         with self._verrou:
-            return b"".join(self._par_zone.pop(zone, ()))
+            limite = time.monotonic() - NOTIFICATION_VALIDITE_S
+            return b"".join(trame for instant, trame in self._par_zone.pop(zone, ()) if instant >= limite)
 
 
 def _zone(x_zone: str) -> str:

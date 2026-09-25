@@ -228,3 +228,11 @@ def test_boite_notifications_abandonne_les_plus_anciennes():
 
     nb_trames = len(boite.retirer("z")) // len(_trame(_audio_vers_wav(np.zeros(4, dtype=np.float32), 16000)))
     assert nb_trames == satellite_api.NOTIFICATIONS_MAX_PAR_ZONE
+
+
+def test_boite_notifications_abandonne_les_sons_perimes():
+    boite = BoiteNotifications()
+    with patch("satellite_api.time.monotonic", return_value=1000.0):
+        boite.deposer("z", np.zeros(4, dtype=np.float32), 16000)
+    with patch("satellite_api.time.monotonic", return_value=1000.0 + satellite_api.NOTIFICATION_VALIDITE_S + 1):
+        assert boite.retirer("z") == b""
