@@ -133,6 +133,8 @@ class HomeAssistantClient:
                 f"Délai dépassé (5s) en contactant {self.base_url}. La VM est "
                 "peut-être éteinte, en veille, ou surchargée."
             ) from exc
+        except requests.exceptions.RequestException as exc:  # ex: base_url vide ou sans http://
+            raise RuntimeError(f"Adresse Home Assistant invalide ({self.base_url!r}) : {exc}") from exc
 
         if reponse.status_code == 401:
             raise RuntimeError(

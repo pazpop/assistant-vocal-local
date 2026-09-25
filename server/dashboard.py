@@ -10,7 +10,7 @@ que de maintenir un serveur séparé rien que pour ce panneau.
 """
 import json
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import psutil
 
@@ -136,6 +136,6 @@ class _Handler(BaseHTTPRequestHandler):
 
 def demarrer(port: int) -> str:
     """Lance le panneau dans un thread à part (démon), retourne son URL."""
-    serveur = HTTPServer(("127.0.0.1", port), _Handler)
+    serveur = ThreadingHTTPServer(("127.0.0.1", port), _Handler)  # un client bloqué ne gèle pas le panneau
     threading.Thread(target=serveur.serve_forever, daemon=True).start()
     return f"http://127.0.0.1:{port}/"

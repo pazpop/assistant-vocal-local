@@ -197,13 +197,14 @@ class WeatherClient:
                 timeout=5,
             )
             reponse.raise_for_status()
-        except requests.RequestException as exc:
-            return f"Erreur en récupérant la météo : {exc}"
+            actuel = reponse.json()["current"]
+            temperature = round(actuel["temperature_2m"])
+            ressenti = round(actuel["apparent_temperature"])
+            vent = round(actuel["wind_speed_10m"])
+        except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+            # Erreur réseau, JSON invalide ou champ absent : jamais annoncer "0 degré".
+            return f"Erreur en récupérant la météo : {exc!r}"
 
-        actuel = reponse.json().get("current", {})
-        temperature = round(actuel.get("temperature_2m", 0))
-        ressenti = round(actuel.get("apparent_temperature", 0))
-        vent = round(actuel.get("wind_speed_10m", 0))
         code = actuel.get("weather_code")
         description = DESCRIPTIONS_METEO.get(code, "des conditions incertaines")
 

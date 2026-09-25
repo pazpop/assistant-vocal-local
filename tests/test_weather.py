@@ -53,6 +53,28 @@ def test_obtenir_meteo_gere_les_erreurs_reseau(mock_get):
     assert "erreur" in resultat.lower()
 
 
+@patch("weather.requests.get")
+def test_obtenir_meteo_n_annonce_jamais_zero_degre_si_un_champ_manque(mock_get):
+    """Open-Meteo qui omet un champ ne doit pas devenir « 0 degrés »."""
+    mock_reponse = MagicMock()
+    mock_reponse.json.return_value = {"current": {"weather_code": 0}}
+    mock_get.return_value = mock_reponse
+
+    resultat = _client_factice().obtenir_meteo()
+
+    assert "erreur" in resultat.lower()
+    assert "degrés" not in resultat
+
+
+@patch("weather.requests.get")
+def test_obtenir_meteo_gere_un_json_invalide(mock_get):
+    mock_reponse = MagicMock()
+    mock_reponse.json.side_effect = ValueError("pas du JSON")
+    mock_get.return_value = mock_reponse
+
+    assert "erreur" in _client_factice().obtenir_meteo().lower()
+
+
 def test_executer_outil_dispatch():
     client = _client_factice()
     with patch.object(client, "obtenir_meteo", return_value="ok"):
@@ -146,7 +168,7 @@ def test_obtenir_meteo_avec_ville_differente_geocode_a_la_volee(mock_get, mock_g
 def test_obtenir_meteo_sans_ville_utilise_la_position_en_cache(mock_get, mock_geocoder):
     mock_reponse = MagicMock()
     mock_reponse.json.return_value = {
-        "current": {"temperature_2m": 20.0, "apparent_temperature": 20.0, "weather_code": 0}
+        "current": {"temperature_2m": 20.0, "apparent_temperature": 20.0, "weather_code": 0, "wind_speed_10m": 10.0}
     }
     mock_get.return_value = mock_reponse
 
@@ -170,7 +192,7 @@ def test_obtenir_meteo_ville_introuvable_ne_plante_pas(mock_geocoder):
 def test_obtenir_meteo_reutilise_le_cache_sans_nouvel_appel_reseau(mock_get):
     mock_reponse = MagicMock()
     mock_reponse.json.return_value = {
-        "current": {"temperature_2m": 20.0, "apparent_temperature": 20.0, "weather_code": 0}
+        "current": {"temperature_2m": 20.0, "apparent_temperature": 20.0, "weather_code": 0, "wind_speed_10m": 10.0}
     }
     mock_get.return_value = mock_reponse
 
@@ -186,7 +208,7 @@ def test_obtenir_meteo_reutilise_le_cache_sans_nouvel_appel_reseau(mock_get):
 def test_obtenir_meteo_cache_separe_par_ville(mock_get):
     mock_reponse = MagicMock()
     mock_reponse.json.return_value = {
-        "current": {"temperature_2m": 20.0, "apparent_temperature": 20.0, "weather_code": 0}
+        "current": {"temperature_2m": 20.0, "apparent_temperature": 20.0, "weather_code": 0, "wind_speed_10m": 10.0}
     }
     mock_get.return_value = mock_reponse
 
@@ -202,7 +224,7 @@ def test_obtenir_meteo_cache_separe_par_ville(mock_get):
 def test_obtenir_meteo_recontacte_apres_expiration_du_cache(mock_get):
     mock_reponse = MagicMock()
     mock_reponse.json.return_value = {
-        "current": {"temperature_2m": 20.0, "apparent_temperature": 20.0, "weather_code": 0}
+        "current": {"temperature_2m": 20.0, "apparent_temperature": 20.0, "weather_code": 0, "wind_speed_10m": 10.0}
     }
     mock_get.return_value = mock_reponse
 
