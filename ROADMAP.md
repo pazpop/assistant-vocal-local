@@ -11,7 +11,7 @@ Ce qui reste à faire. L'existant (et le pourquoi des choix) est dans
   des deux purges combinées, lecture de la version.
 - [ ] Alertes météo : les diffuser aussi aux satellites (aujourd'hui, seul le
   PC les annonce). Même mécanisme que les minuteurs (`BoiteNotifications`).
-- [ ] Sécurité : une clé API par satellite ; limiter les essais de clé.
+- [ ] Sécurité : limiter les essais de clé API.
 - [ ] Mesurer `beam_size=1` pour le STT (latence).
 - [ ] Routage par sous-chaîne (`trigger.py`) : normaliser accents/apostrophes
   une fois, plutôt que lister les variantes à la main.
@@ -28,9 +28,15 @@ Procédure matériel/OS/pilotes :
 - [ ] Vrai VAD sur le Pi (`pysilero-vad`, à vérifier sans PyTorch en Python
   3.13 aarch64) à la place du seuil de volume adaptatif.
 - [ ] Annulation d'écho / interruption pendant que Jarvis parle.
-- [ ] Chiffrer le trafic satellite ↔ serveur : aujourd'hui HTTP en clair, clé
-  API et audio compris. Piste simple : WireGuard/Tailscale entre le Pi et le
-  PC, ou un proxy TLS ; sinon certificat auto-signé + `verify_ssl` côté client.
+- [ ] **TLS** entre satellite et serveur (voulu, pas urgent) : aujourd'hui
+  HTTP en clair, clé API et audio compris. Deux voies :
+  - sans code (rapide, ~30 min) : Tailscale/WireGuard entre le Pi et le PC,
+    puis `satellite.host` sur l'adresse du tunnel ;
+  - TLS dans le code : certificat auto-signé côté serveur (uvicorn
+    `ssl_certfile`/`ssl_keyfile`), distribué au Pi, `server.verify_ssl`/CA
+    côté client (comme pour Home Assistant).
+- [ ] Une clé API par satellite, zone déduite de la clé (aujourd'hui `X-Zone`
+  est déclaratif : un satellite peut se faire passer pour un autre).
 - [ ] Découverte automatique du serveur (mDNS).
 
 ## Installation
