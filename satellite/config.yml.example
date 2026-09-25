@@ -14,8 +14,9 @@ server:
   url: "http://192.168.1.50:8791/assistant"
   # Même valeur que satellite.api_key dans le config.yml du serveur.
   api_key: ""
-  # Secondes avant d'abandonner si le serveur ne répond pas (LLM + TTS
-  # peuvent prendre plusieurs secondes selon le modèle utilisé).
+  # Secondes d'attente maximale avant d'abandonner si le serveur ne
+  # répond plus : pour la première phrase (STT + début du LLM + TTS), puis
+  # entre deux phrases de la réponse (elle arrive en flux, pas d'un bloc).
   timeout: 30
 
 zone:

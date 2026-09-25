@@ -10,7 +10,6 @@ continue de générer la suite.
 import argparse
 import queue
 import random
-import re
 import sys
 import threading
 import time
@@ -33,6 +32,7 @@ from audio_io import play_audio, record_until_silence
 from date_time import DATE_TIME_TOOLS, demande_date_heure
 from home_assistant import HA_TOOLS, HomeAssistantClient, demande_domotique
 from llm import LanguageModel, demande_de_reset
+from phrases import decouper_en_phrases
 from stt import SpeechToText
 from timer import TIMER_TOOLS, TimerManager, demande_minuteur, generer_sonnerie
 from trigger import contient_une_phrase
@@ -41,8 +41,6 @@ from vad import VoiceActivityDetector
 from wakeword import WakeWordDetector
 from weather import WEATHER_TOOLS, WeatherClient, demande_meteo
 from weather_alerts import ALERT_TOOLS, AlertesMeteoClient, demande_alerte
-
-FIN_DE_PHRASE = re.compile(r"([^.!?]*[.!?]+)")
 
 AU_REVOIR = "À la prochaine !"
 INCOMPREHENSION = "Désolé, je n'ai pas compris. Je repasse en veille."
@@ -68,21 +66,14 @@ def parse_args() -> argparse.Namespace:
 
 def parler_en_flux(fragments_llm, tts: TextToSpeech, file_audio: "queue.Queue") -> None:
     """Consomme le flux du LLM, synthétise phrase par phrase, met en file pour lecture."""
-    tampon = ""
-    for fragment in fragments_llm:
-        print(fragment, end="", flush=True)
-        tampon += fragment
 
-        while (trouve := FIN_DE_PHRASE.match(tampon)):
-            phrase = trouve.group(1)
-            tampon = tampon[len(phrase):]
-            phrase = phrase.strip()
-            if phrase:
-                file_audio.put(tts.synthesize(phrase))
+    def afficher_au_fil_de_l_eau(fragments):
+        for fragment in fragments:
+            print(fragment, end="", flush=True)
+            yield fragment
 
-    reste = tampon.strip()
-    if reste:
-        file_audio.put(tts.synthesize(reste))
+    for phrase in decouper_en_phrases(afficher_au_fil_de_l_eau(fragments_llm)):
+        file_audio.put(tts.synthesize(phrase))
 
     file_audio.put(None)  # sentinelle : plus rien à jouer
 
@@ -310,20 +301,18 @@ def main() -> None:
 
     llm = LanguageModel(system_prompt=construire_system_prompt(ha_client))
 
-    def repondre_texte(question: str) -> str:
+    def repondre_flux(question: str) -> Iterator[str]:
         """Passée telle quelle à satellite_api.demarrer : un satellite envoie
-        une question déjà transcrite (STT fait côté serveur, voir
-        satellite_api.py) et attend une réponse texte complète, pas un flux
-        — la synthèse/lecture est ensuite gérée côté satellite_api, pas ici."""
-        return "".join(
-            choisir_reponse(question, llm, routes_directes, tools_disponibles, executer_outil)
-        )
+        une question (transcrite côté serveur, voir satellite_api.py) et
+        reçoit la réponse phrase par phrase — on renvoie donc le flux du LLM
+        tel quel, la synthèse et l'envoi sont gérés côté satellite_api."""
+        return choisir_reponse(question, llm, routes_directes, tools_disponibles, executer_outil)
 
     if config.SATELLITE_ENABLED:
         if not config.SATELLITE_API_KEY:
             print("⚠️  API satellite désactivée : satellite.api_key manquant dans config.yml.")
         else:
-            url_satellite = satellite_api.demarrer(stt, tts, repondre_texte)
+            url_satellite = satellite_api.demarrer(stt, tts, repondre_flux)
             print(f"📡 API satellite : {url_satellite}")
     else:
         print("⏸️  API satellite désactivée (satellite.enabled: false).")

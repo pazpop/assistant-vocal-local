@@ -692,9 +692,24 @@ Un seul endpoint REST (`POST /assistant`, `server/satellite_api.py`) pour un
 futur client Raspberry Pi (voir [Roadmap](ROADMAP.md#satellites-raspberry-pi)) :
 le satellite envoie un WAV (mono, 16 bits, 16 kHz — même format que
 `record_until_silence` produit), Jarvis fait tourner STT → LLM/outils → TTS
-et renvoie un WAV en réponse. Tout le traitement reste sur ce PC : le
-satellite n'a besoin que d'un micro/haut-parleur, aucun modèle chargé
-localement.
+et renvoie la réponse **en flux, phrase par phrase**. Tout le traitement
+reste sur ce PC : le satellite n'a besoin que d'un micro/haut-parleur, aucun
+modèle chargé localement.
+
+**Pourquoi en flux** : sans ça, le satellite attendrait « LLM complet + TTS
+complet » avant d'entendre quoi que ce soit — plus la réponse est longue,
+plus l'attente l'est. En flux, chaque phrase est synthétisée dès qu'elle est
+complète dans le flux du LLM (`phrases.decouper_en_phrases`, le même
+découpage que la boucle micro locale) puis envoyée aussitôt : le satellite
+commence à parler après la première phrase, pendant que la suite est encore
+en train d'être générée.
+
+**Format de la réponse** : une suite de trames, chacune = 4 octets (entier
+big-endian non signé : taille N) suivis de N octets d'un WAV mono 16 bits
+complet (qui porte sa propre fréquence d'échantillonnage). Fin de flux = fin
+de la connexion HTTP. Le client (`satellite/client_api.py`) reconstitue les
+trames au fur et à mesure de l'arrivée des octets et joue chaque phrase
+pendant que le serveur prépare la suivante.
 
 ```yaml
 satellite:
@@ -711,13 +726,13 @@ seulement `127.0.0.1`. Une `api_key` vide désactive l'accès plutôt que de
 l'ouvrir à n'importe qui — `main.py` refuse de démarrer l'API (avec un
 avertissement clair) si `satellite.enabled: true` mais `api_key` est vide.
 
-`repondre_texte` (dans `main.py`) réutilise `choisir_reponse` — le même
+`repondre_flux` (dans `main.py`) réutilise `choisir_reponse` — le même
 routage vers `llm.ask_tool_direct`/`ask_with_tools` que la boucle micro
 locale — et le même `LanguageModel` (donc le même historique de
 conversation) : un satellite est une autre façon de parler à Jarvis, pas une
 seconde instance. Contrairement à la boucle micro, pas de phrase d'attente
-("Je vérifie ça...") pendant un appel d'outil : le satellite reçoit une seule
-réponse WAV complète, rien à jouer en parallèle.
+("Je vérifie ça...") pendant un appel d'outil : le satellite n'a rien à
+jouer tant que la première phrase de la vraie réponse n'est pas prête.
 
 ### Client (`satellite/`)
 

@@ -63,12 +63,15 @@ def main() -> None:
 
             print("Envoi au serveur...")
             try:
-                reponse_audio, sample_rate = client_api.demander(audio)
+                # Chaque phrase est jouée dès qu'elle arrive, pendant que le
+                # serveur prépare la suivante (elle attend dans le tampon réseau
+                # pendant que la précédente joue : pas de trou entre deux).
+                for phrase_audio, sample_rate in client_api.demander(audio):
+                    play_audio(phrase_audio, sample_rate)
             except requests.RequestException as exc:
-                print(f"⚠️  Serveur injoignable : {exc}\n")
+                print(f"⚠️  Échange avec le serveur interrompu : {exc}\n")
                 continue
 
-            play_audio(reponse_audio, sample_rate)
             print("En veille.\n")
 
         except KeyboardInterrupt:

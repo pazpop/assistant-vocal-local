@@ -3,9 +3,18 @@ ROADMAP.md > Satellites Raspberry Pi).
 
 Un seul endpoint REST (`POST /assistant`) : le satellite envoie un WAV (mono,
 16 bits, échantillonné à config.SAMPLE_RATE — même format que record_until_
-silence produit), reçoit un WAV en retour. Tout le pipeline (STT -> LLM/
-outils -> TTS) tourne ici, sur le PC : le satellite n'a besoin que d'un
-micro/haut-parleur, pas de GPU ni de modèles chargés localement.
+silence produit) et reçoit la réponse EN FLUX, phrase par phrase : chaque
+phrase est synthétisée dès qu'elle est complète dans le flux du LLM, puis
+envoyée aussitôt, pour que le satellite commence à parler avant la fin de la
+génération (même principe que la boucle micro locale, voir main.
+parler_en_flux). Tout le pipeline (STT -> LLM/outils -> TTS) tourne ici, sur
+le PC : le satellite n'a besoin que d'un micro/haut-parleur, pas de GPU ni de
+modèles chargés localement.
+
+Format de la réponse : une suite de trames, chacune = 4 octets (entier
+big-endian non signé : taille N) suivis de N octets d'un WAV mono 16 bits
+complet (qui porte donc sa propre fréquence d'échantillonnage). Fin de flux =
+fin de la connexion.
 
 Toujours protégée par une clé API (X-API-Key) : contrairement au panneau de
 ressources ou à Home Assistant, cette API écoute au-delà de 127.0.0.1 par
@@ -14,15 +23,18 @@ appareil du réseau local.
 """
 import io
 import secrets
+import struct
 import threading
 import wave
+from typing import Iterable, Iterator
 
 import numpy as np
 import uvicorn
 from fastapi import FastAPI, Header, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import StreamingResponse
 
 import config
+from phrases import decouper_en_phrases
 
 INCOMPREHENSION = "Désolé, je n'ai pas compris."
 
@@ -60,32 +72,51 @@ def _audio_vers_wav(audio: np.ndarray, sample_rate: int) -> bytes:
     return tampon.getvalue()
 
 
-def creer_app(stt, tts, repondre_texte) -> FastAPI:
-    """`repondre_texte(question: str) -> str` vient de main.py (voir
+def _trame(wav: bytes) -> bytes:
+    """Préfixe un WAV de sa taille (4 octets big-endian) : le satellite sait
+    ainsi où finit chaque phrase dans le flux (voir satellite/client_api.py)."""
+    return struct.pack(">I", len(wav)) + wav
+
+
+def _trames_reponse(tts, fragments: Iterable[str]) -> Iterator[bytes]:
+    """Produit une trame par phrase du flux de texte, synthétisée au fil de
+    l'eau. Générateur synchrone : Starlette l'itère dans un thread à part, ce
+    qui laisse la boucle d'événements libre pendant que le LLM et Piper
+    travaillent."""
+    for phrase in decouper_en_phrases(fragments):
+        audio = tts.synthesize(phrase)
+        if audio.size:
+            yield _trame(_audio_vers_wav(audio, tts.sample_rate))
+
+
+def creer_app(stt, tts, repondre_flux) -> FastAPI:
+    """`repondre_flux(question: str) -> Iterator[str]` vient de main.py (voir
     choisir_reponse) : mêmes outils (météo, domotique, minuteur...) et même
     historique de conversation que la boucle micro locale — un satellite est
     une autre façon de parler à Jarvis, pas une seconde instance."""
     app = FastAPI(title="Jarvis Satellite API")
 
     @app.post("/assistant")
-    async def assistant(audio: UploadFile, x_api_key: str = Header(default="")) -> Response:
+    async def assistant(
+        audio: UploadFile, x_api_key: str = Header(default="")
+    ) -> StreamingResponse:
         if not _cle_api_valide(x_api_key):
             raise HTTPException(status_code=401, detail="Clé API invalide ou manquante.")
 
         signal = _wav_vers_audio(await audio.read())
         question = stt.transcribe(signal)
-        texte_reponse = repondre_texte(question) if question else INCOMPREHENSION
+        fragments = repondre_flux(question) if question else [INCOMPREHENSION]
 
-        audio_reponse = tts.synthesize(texte_reponse)
-        wav = _audio_vers_wav(audio_reponse, tts.sample_rate)
-        return Response(content=wav, media_type="audio/wav")
+        return StreamingResponse(
+            _trames_reponse(tts, fragments), media_type="application/octet-stream"
+        )
 
     return app
 
 
-def demarrer(stt, tts, repondre_texte) -> str:
+def demarrer(stt, tts, repondre_flux) -> str:
     """Lance l'API dans un thread à part (démon), retourne son URL."""
-    app = creer_app(stt, tts, repondre_texte)
+    app = creer_app(stt, tts, repondre_flux)
     conf = uvicorn.Config(
         app, host=config.SATELLITE_HOST, port=config.SATELLITE_PORT, log_level="warning"
     )

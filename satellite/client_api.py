@@ -1,8 +1,10 @@
 """Client HTTP vers l'API satellite du serveur (voir server/satellite_api.py) :
 envoie l'audio enregistré, reçoit la réponse (déjà synthétisée par Piper côté
-serveur) à jouer telle quelle."""
+serveur) phrase par phrase, chacune à jouer dès qu'elle arrive."""
 import io
+import struct
 import wave
+from typing import Iterable, Iterator
 
 import numpy as np
 import requests
@@ -34,17 +36,44 @@ def _wav_vers_audio(donnees: bytes) -> tuple[np.ndarray, int]:
     return audio_int16.astype(np.float32) / 32768.0, sample_rate
 
 
-def demander(audio: np.ndarray) -> tuple[np.ndarray, int]:
-    """Envoie l'audio enregistré au serveur, renvoie sa réponse (audio,
-    sample_rate). Lève requests.RequestException si le serveur est
-    injoignable, rejette la clé API ou renvoie une erreur — à l'appelant
-    (main.py) de décider quoi faire (ex: annoncer l'échec et continuer)."""
+def _extraire_trames(morceaux: Iterable[bytes]) -> Iterator[bytes]:
+    """Reconstitue les WAV (un par phrase) à partir des morceaux d'octets qui
+    arrivent du réseau, découpés n'importe où : chaque trame est un entier
+    big-endian de 4 octets (taille N) suivi de N octets de WAV — le format
+    produit par server/satellite_api.py (_trame). Chaque WAV est produit dès
+    qu'il est complet, sans attendre la fin du flux."""
+    tampon = bytearray()
+    for morceau in morceaux:
+        tampon.extend(morceau)
+        while len(tampon) >= 4:
+            (taille,) = struct.unpack(">I", tampon[:4])
+            if len(tampon) < 4 + taille:
+                break
+            yield bytes(tampon[4 : 4 + taille])
+            del tampon[: 4 + taille]
+
+    if tampon:
+        raise requests.exceptions.ChunkedEncodingError(
+            "Flux interrompu au milieu d'une phrase de la réponse."
+        )
+
+
+def demander(audio: np.ndarray) -> Iterator[tuple[np.ndarray, int]]:
+    """Envoie l'audio enregistré au serveur, puis produit (audio, sample_rate)
+    pour chaque phrase de la réponse, dès qu'elle arrive : à l'appelant
+    (main.py) de la jouer pendant que le serveur prépare la suite. Lève
+    requests.RequestException (à l'itération, pas à l'appel) si le serveur est
+    injoignable, rejette la clé API, renvoie une erreur ou coupe le flux en
+    cours de route — à l'appelant de décider quoi faire (ex: annoncer l'échec
+    et continuer)."""
     wav = _audio_vers_wav(audio, config.SAMPLE_RATE)
-    reponse = requests.post(
+    with requests.post(
         config.SERVER_URL,
         headers={"X-API-Key": config.SERVER_API_KEY},
         files={"audio": ("question.wav", wav, "audio/wav")},
         timeout=config.SERVER_TIMEOUT,
-    )
-    reponse.raise_for_status()
-    return _wav_vers_audio(reponse.content)
+        stream=True,
+    ) as reponse:
+        reponse.raise_for_status()
+        for wav_phrase in _extraire_trames(reponse.iter_content(chunk_size=None)):
+            yield _wav_vers_audio(wav_phrase)
