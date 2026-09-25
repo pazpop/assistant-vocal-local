@@ -11,6 +11,7 @@ import argparse
 import functools
 import queue
 import random
+import re
 import sys
 import threading
 import time
@@ -49,10 +50,20 @@ ERREUR_VOCALE = "Désolé, j'ai rencontré un problème. Réessaie dans un insta
 PAUSE_APRES_ERREUR_S = 2  # évite de tourner à 100 % CPU si l'erreur persiste (micro débranché...)
 
 
+MOTS_MAX_AUTOUR_DE_LA_FIN = 3  # « ok merci Jarvis, bonne soirée » = fin ; plus long = une vraie question
+
+
 def demande_fin_conversation(texte: str) -> bool:
-    """Détecte si une phrase transcrite demande de terminer la conversation
-    continue (ex: "Merci Jarvis"), pour repasser en veille (mot-clé)."""
-    return contient_une_phrase(texte, config.CONVERSATION_END_PHRASES)
+    """Vrai si la phrase transcrite termine la conversation continue
+    (« merci Jarvis »), pour repasser en veille. Seulement si elle se limite
+    à cette formule (au plus MOTS_MAX_AUTOUR_DE_LA_FIN autres mots) :
+    « merci Jarvis, quelle heure est-il ? » est une question, pas un au revoir."""
+    minuscules = texte.lower()
+    for phrase in config.CONVERSATION_END_PHRASES:
+        if phrase in minuscules:
+            reste = minuscules.replace(phrase, " ")
+            return len(re.findall(r"\w+", reste)) <= MOTS_MAX_AUTOUR_DE_LA_FIN
+    return False
 
 
 def parse_args() -> argparse.Namespace:

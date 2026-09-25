@@ -486,7 +486,9 @@ termine :
 
 - **À la voix** : dis *"merci Jarvis"* (ou une variante, voir
   `CONVERSATION_END_PHRASES` dans `config.py`) — Jarvis dit au revoir et
-  repasse en veille (attente du mot-clé).
+  repasse en veille (attente du mot-clé). Seulement si la phrase se limite à la
+  formule (3 autres mots au plus) : « merci Jarvis, quelle heure est-il ? » est
+  traité comme une question.
 - **Silence** : si tu ne dis rien dans les `conversation.followup_timeout`
   secondes (6s par défaut) qui suivent sa réponse, Jarvis repasse en veille
   sans un mot.

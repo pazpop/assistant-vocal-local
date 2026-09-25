@@ -3,7 +3,7 @@ outils disponibles) — le découpage en phrases, lui, est dans test_phrases.py.
 """
 from unittest.mock import Mock, patch
 
-from main import construire_outils, construire_routes_directes
+from main import construire_outils, construire_routes_directes, demande_fin_conversation
 from timer import TimerManager
 from weather_alerts import ALERT_TOOLS
 from weather import WEATHER_TOOLS
@@ -118,3 +118,19 @@ def test_les_minuteurs_d_un_satellite_gardent_son_origine():
 
     callback_expiration()
     assert appels == ["cuisine"]
+
+
+def test_demande_fin_conversation_formules_courtes():
+    for texte in ("Merci Jarvis", "Merci, Jarvis.", "Ok merci Jarvis, bonne soirée", "C'est tout merci"):
+        assert demande_fin_conversation(texte), texte
+
+
+def test_merci_jarvis_suivi_d_une_question_n_est_pas_un_au_revoir():
+    """Sinon la conversation se ferme et la question est perdue."""
+    for texte in (
+        "Merci Jarvis, quelle heure est-il ?",
+        "Merci Jarvis, mets un minuteur de cinq minutes",
+        "Quelle est la météo pour demain merci Jarvis",
+        "Quelle heure est-il ?",
+    ):
+        assert not demande_fin_conversation(texte), texte
