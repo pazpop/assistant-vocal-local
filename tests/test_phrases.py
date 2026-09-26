@@ -4,7 +4,9 @@ Cette logique décide quand une phrase est "assez complète" pour être envoyée
 au TTS pendant le streaming du LLM (boucle micro locale et API satellite) —
 un bon candidat à tester en isolation, sans micro, LLM ni Piper.
 """
-from phrases import FIN_DE_PHRASE, decouper_en_phrases
+import pytest
+
+from phrases import FIN_DE_PHRASE, decouper_en_phrases, nettoyer_pour_la_voix
 
 
 def test_phrase_simple():
@@ -59,3 +61,23 @@ def test_decouper_plusieurs_phrases_dans_un_seul_fragment():
 def test_decouper_ignore_le_vide():
     assert list(decouper_en_phrases([])) == []
     assert list(decouper_en_phrases(["   ", "\n"])) == []
+
+
+@pytest.mark.parametrize(
+    "brut, attendu",
+    [
+        ("Voici **le résultat** important.", "Voici le résultat important."),
+        ("Un *petit* mot et un _autre_ mot.", "Un petit mot et un autre mot."),
+        ("Lance `python main.py` ensuite.", "Lance python main.py ensuite."),
+        ("## Titre\nTexte.", "Titre Texte."),
+        ("- premier point\n- second point", "premier point second point"),
+        ("* puce\n* autre", "puce autre"),
+        ("Voir [la doc](https://exemple.org/page) ici.", "Voir la doc ici."),
+        ("snake_case_var reste intact.", "snake_case_var reste intact."),
+        ("Texte simple, sans rien.", "Texte simple, sans rien."),
+        ("**", ""),
+    ],
+)
+def test_nettoyer_pour_la_voix(brut, attendu):
+    """Piper lit les symboles Markdown à voix haute (« astérisque »)."""
+    assert nettoyer_pour_la_voix(brut) == attendu

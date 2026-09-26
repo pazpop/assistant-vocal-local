@@ -11,6 +11,7 @@ from piper import PiperVoice
 from piper.config import SynthesisConfig
 
 import config
+from phrases import nettoyer_pour_la_voix
 
 
 class TextToSpeech:
@@ -33,8 +34,10 @@ class TextToSpeech:
         self._verrou_synthese = threading.Lock()
 
     def synthesize(self, text: str) -> np.ndarray:
-        """Génère l'audio (float32 mono, [-1, 1]) correspondant au texte."""
-        if not text.strip():
+        """Génère l'audio (float32 mono, [-1, 1]) correspondant au texte
+        (sans sa mise en forme Markdown, voir nettoyer_pour_la_voix)."""
+        text = nettoyer_pour_la_voix(text)
+        if not text:
             return np.array([], dtype=np.float32)
 
         with self._verrou_synthese:

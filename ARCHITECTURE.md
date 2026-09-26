@@ -149,7 +149,7 @@ assistant-vocal-local/
 │   ├── tts.py                       # Synthèse vocale (Piper)
 │   ├── home_assistant.py           # Client domotique local + outils LLM
 │   ├── dashboard.py                  # Panneau de ressources local (CPU/RAM/VRAM)
-│   ├── phrases.py                     # Découpage du flux LLM en phrases
+│   ├── phrases.py                     # Découpage du flux LLM en phrases, nettoyage Markdown avant la voix
 │   └── satellite_api.py               # API réseau pour les satellites (FastAPI)
 ├── satellite/            # Client Raspberry Pi (mot-clé + micro + haut-parleur)
 │   ├── RASPBERRY_PI_SETUP.md # Matériel, OS, pilotes du HAT micro (avant le client)
