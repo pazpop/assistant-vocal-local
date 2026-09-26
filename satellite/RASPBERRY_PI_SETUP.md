@@ -26,7 +26,7 @@ depuis n'importe quel PC (Windows/macOS/Linux) :
 2. Ouvre Raspberry Pi Imager.
 3. **Device** : choisis "Raspberry Pi 4".
 4. **Operating System** : choisis **"Raspberry Pi OS (64-bit)"** (pas la
-   version 32 bits — requise pour les pilotes du HAT, voir plus bas).
+   version 32 bits : `onnxruntime` n'existe pas pour elle).
 5. **Storage** : sélectionne ta carte microSD (vérifie bien la taille
    affichée pour ne pas écraser un autre disque par erreur).
 6. Un écran de pré-configuration s'ouvre automatiquement avant l'écriture —
@@ -78,9 +78,8 @@ echo "dtoverlay=respeaker-2mic-v2_0" | sudo tee -a /boot/firmware/config.txt
 sudo reboot
 ```
 
-**`/boot/firmware/config.txt`** (pas `/boot/config.txt`) : c'est le bon
-chemin sur Raspberry Pi OS Bookworm (64 bits) — l'ancien chemin a changé
-avec cette version de l'OS.
+**`/boot/firmware/config.txt`** (pas `/boot/config.txt`) : le chemin sur
+Raspberry Pi OS Bookworm et Trixie.
 
 ### Vérifier que le HAT est détecté
 

@@ -47,7 +47,7 @@ flowchart LR
 | LLM | [Ollama](https://ollama.com) (Qwen2.5:7b par défaut) | Modèle de langage, tool-calling, conversation |
 | TTS | [Piper](https://github.com/OHF-Voice/piper1-gpl) (voix `fr_FR-tom-medium`) | Texte → parole (CPU) |
 | Domotique | [Home Assistant](#domotique--home-assistant-en-local) (API REST, ton réseau) | Allumer/éteindre lumières et prises |
-| Météo | [Open-Meteo](#météo) (API gratuite) | Conditions actuelles pour la région configurée |
+| Météo | [Open-Meteo](#météo) (API gratuite) | Conditions actuelles et prévision (demain, après-demain) |
 | Alertes météo | [Environnement Canada](#alertes-météo) (flux Atom) | Avertissements publics, sur demande ou proactifs |
 | Minuteur | [`threading.Timer`](#minuteurs) (bibliothèque standard) | Minuteurs vocaux, sonnerie + annonce à l'expiration |
 | Historique | `LanguageModel.history` (RAM, en process) | Contexte de la conversation en cours, jamais persisté |
@@ -92,8 +92,7 @@ flowchart LR
 | Configuration | `satellite/config.yml` | URL du serveur, clé API, zone, seuils audio |
 | Démarrage automatique | `systemd` ([README](satellite/README.md#démarrage-automatique-systemd)) | Lance `main.py` au boot et le relance en cas de plantage |
 
-
-## Pourquoi ces choix ?
+## Pourquoi ces choix
 
 - **Tout tourne en local** (Ollama, faster-whisper, Piper, openWakeWord) :
   aucune voix ni aucun texte n'est envoyé à un service cloud. Seules
@@ -129,7 +128,8 @@ flowchart LR
 assistant-vocal-local/
 ├── config.yml            # Tes réglages + secrets personnels (ignoré par git)
 ├── config.yml.example    # Modèle commité, à copier en config.yml
-├── launch.py             # Lance Jarvis (+ Open WebUI en option), sans Docker
+├── launch.py             # Lance Jarvis (+ Open WebUI en option)
+├── install.ps1, install.bat  # Installation guidée (Windows)
 ├── generate_api_key.py   # Génère une clé API aléatoire pour satellite.api_key
 ├── openwebui/            # Open WebUI, venv séparé (voir Open WebUI ci-dessous)
 │   └── .venv-openwebui/    # Ignoré par git — pip install open-webui
@@ -142,7 +142,7 @@ assistant-vocal-local/
 │   ├── stt.py            # Transcription (faster-whisper)
 │   ├── llm.py            # Appel Ollama + historique de session + tool-calling
 │   ├── trigger.py           # Détection de phrase-déclencheuse (partagée)
-│   ├── weather.py             # Météo actuelle via Open-Meteo (sans clé API)
+│   ├── weather.py             # Météo actuelle et prévisions via Open-Meteo (sans clé API)
 │   ├── weather_alerts.py       # Alertes météo (flux Atom Environnement Canada)
 │   ├── timer.py                 # Minuteurs vocaux (threading.Timer + carillon)
 │   ├── date_time.py               # Date et heure actuelles (calcul local)
@@ -159,12 +159,11 @@ assistant-vocal-local/
 │   ├── audio_io.py               # Capture micro (seuil RMS adaptatif) + lecture haut-parleur
 │   ├── client_api.py               # Appel HTTP vers server/satellite_api.py
 │   ├── chrono.py                     # Texte des temps par étape affichés après chaque question
-│   ├── config.yml.example, requirements.txt, README.md, tests/
+│   └── config.yml.example, requirements.txt, README.md, tests/
 ├── models/                # Poids/voix téléchargés (ignoré par git, voir models/README.md)
-│   ├── piper/              # Voix Piper (.onnx + .onnx.json)
+│   └── piper/              # Voix Piper (.onnx + .onnx.json)
 ├── tests/                 # Tests pytest du serveur (satellite/tests/ pour le client)
 ├── .github/workflows/tests.yml   # CI : tests serveur et tests satellite
-├── install.ps1, install.bat, launch.py, generate_api_key.py
 ├── .venv/                 # Environnement virtuel (ignoré par git)
 ├── .gitignore
 ├── LICENSE
@@ -269,18 +268,11 @@ cas d'échec, jamais bloquante. Un message s'affiche dans les deux cas :
 ⚠️  Nouvelle version disponible sur GitHub (locale : a1b2c3d, distante : e4f5a6b) — https://github.com/pazpop/assistant-vocal-local
 ```
 
-Le commit local est `git rev-parse HEAD` pour un clone, ou le fichier
-`.version` (non versionné) que `install.ps1` écrit après un téléchargement
-en `.zip`, sans Git. Sans l'un ni l'autre, la vérification est ignorée. Un
-clone en avance sur GitHub (travail non poussé) est « à jour »
-(`git merge-base --is-ancestor`).
-
-Aucun commit automatique : pas de numéro à maintenir, donc plus de
-`git pull --rebase` avant chaque push. **Ne met jamais rien à jour** —
-`install.ps1` ne sait pas mettre à jour le code d'une installation existante
-(s'il trouve déjà `requirements.txt`, il saute le téléchargement du dépôt) :
-c'est volontairement un signal, pas une action. Désactivable via
-`update_check.enabled: false` (seul appel réseau de `launch.py` lui-même).
+**Ne met jamais rien à jour** — `install.ps1` ne sait pas mettre à jour le
+code d'une installation existante (s'il trouve déjà `requirements.txt`, il
+saute le téléchargement du dépôt) : c'est volontairement un signal, pas une
+action. Désactivable via `update_check.enabled: false` (seul appel réseau de
+`launch.py` lui-même).
 
 ## Installation avancée
 
@@ -309,25 +301,17 @@ indépendant de ce dépôt.
 ## Open WebUI
 
 Interface web de conversation par-dessus Ollama, optionnelle, lancée par
-`launch.py` — voir [Roadmap](ROADMAP.md#interface-web-de-conversation-open-webui)
-pour le raisonnement derrière ce choix (venv natif plutôt que Docker,
-conflit de version `onnxruntime` vérifié entre les deux projets).
+`launch.py`, dans son propre venv (conflit de version `onnxruntime` avec
+Jarvis).
 
-**Fenêtre séparée** : `launch.py` ouvre Open WebUI dans sa propre console
-Windows (`subprocess.CREATE_NEW_CONSOLE`) plutôt que de mélanger ses logs
-(verbeux — migrations de base de données, requêtes HTTP) avec ceux de
-Jarvis dans la même fenêtre. Jarvis reste dans la fenêtre principale, celle
-où `launch.py` a été lancé.
+**Fenêtre séparée** : Open WebUI s'ouvre dans sa propre console Windows
+(logs verbeux), Jarvis reste dans la fenêtre de `launch.py`.
 
-**`RuntimeWarning: Couldn't find ffmpeg or avconv`** (dans les logs d'Open
-WebUI, pas ceux de Jarvis) : `pydub`, utilisé par les fonctions audio
-propres à Open WebUI (bouton micro, upload de fichiers — sans rapport avec
-le pipeline vocal de Jarvis), a besoin du binaire externe **ffmpeg**,
-proposé dans `install.ps1` (`Gyan.FFmpeg`, voir [Installation](#installation)).
-`launch.py` relit le `PATH` depuis le registre à chaque démarrage pour
-couvrir le cas où le terminal a été ouvert avant l'installation de ffmpeg —
-un `open-webui serve` lancé à la main, hors `launch.py`, n'en bénéficie
-pas.
+**`RuntimeWarning: Couldn't find ffmpeg or avconv`** (logs d'Open WebUI) :
+ses fonctions audio (bouton micro, upload) utilisent `pydub`, qui a besoin de
+**ffmpeg** (proposé par `install.ps1`). `launch.py` relit le `PATH` du
+registre à chaque démarrage ; un `open-webui serve` lancé à la main n'en
+bénéficie pas.
 
 **Installation** (une fois, dans son propre venv — jamais dans
 `server/.venv`) :
@@ -422,6 +406,7 @@ HA, ce chemin continue de fonctionner en parallèle, indépendamment de Jarvis.
 `device_aliases` (ou de l'`entity_id` à défaut), pas d'une reformulation par
 le LLM — un peu moins naturel, mais toujours fidèle à ce qui s'est vraiment
 passé.
+
 Home Assistant répond 200 même pour un `entity_id` inexistant : dans ce cas
 (liste de changements vide), Jarvis vérifie l'entité et dit « Je ne trouve
 pas l'appareil … » plutôt que de confirmer une action sans effet.
@@ -494,7 +479,7 @@ termine :
   dit, Jarvis le dit à voix haute ("Désolé, je n'ai pas compris. Je repasse
   en veille.") plutôt que de repasser en veille silencieusement.
 
-### Contexte de conversation : où va l'historique ?
+### Contexte de conversation : où va l'historique
 
 Pendant qu'elle dure, Jarvis garde les derniers échanges en tête pour
 comprendre les questions de suite ("et l'autre aussi ?"). Concrètement,
@@ -546,8 +531,8 @@ Réservé à un usage **non commercial** (licence CC BY 4.0 des données).
 Au démarrage, Jarvis géocode `location.geocode_query` (mis en cache pour la
 session) — si ça échoue, la météo démarre désactivée avec un message clair
 (pas de repli automatique : la localisation vient uniquement de
-`config.yml`). La réponse inclut température, ressenti, ciel et vitesse du
-vent.
+`config.yml`). La météo actuelle inclut température, ressenti, ciel et
+vitesse du vent.
 
 Demande "quel temps fait-il ?" ou "quel temps fait-il à Paris ?" : le LLM
 appelle `obtenir_meteo` et en extrait la ville si une est mentionnée, sinon
@@ -561,14 +546,16 @@ la ville. `weather.demande_meteo()` détecte la question ("météo", "il pleut",
 historique ni reformulation par le LLM (voir
 [Pourquoi ces choix ?](#pourquoi-ces-choix)).
 
-Une réponse est mise en cache 10 minutes par ville et par jour (en mémoire) : une
-question répétée dans ce délai ne resollicite pas Open-Meteo, pour rester
+Une réponse est mise en cache 10 minutes par ville et par jour (en
+mémoire) : une question répétée dans ce délai ne resollicite pas Open-Meteo, pour rester
 respectueux d'une API gratuite. Seules les réponses réussies sont mises en
 cache, jamais une erreur.
 
-Ville introuvable ou Open-Meteo injoignable : la météo se désactive
-proprement, avec un message clair, sans affecter le reste de l'assistant.
-La météo est désactivée par défaut : `weather.enabled: true` pour l'activer.
+Ville par défaut introuvable au démarrage : la météo est désactivée avec un
+message clair, sans affecter le reste de l'assistant. Pendant l'usage, une
+erreur réseau ou une réponse incomplète d'Open-Meteo donne un message parlé,
+sans rien désactiver. Désactivée par défaut : `weather.enabled: true` pour
+l'activer.
 
 ## Alertes météo
 
@@ -644,7 +631,8 @@ Chaque minuteur tourne dans son propre thread (continue même si Jarvis
 retourne en veille) et reçoit un numéro (1, 2, 3...) à sa création, jamais
 réattribué même si un minuteur plus ancien sonne ou est annulé avant — pour
 toujours désigner le bon. Plusieurs minuteurs simultanés fonctionnent sans
-problème. Le carillon est un bip sinusoïdal généré en code, aucun fichier
+problème. Demandé depuis un satellite, un minuteur sonne sur ce satellite
+(voir [API satellite](#api-satellite)). Le carillon est un bip sinusoïdal généré en code, aucun fichier
 audio requis.
 
 "Liste les minuteurs" donne l'état de tous ; "combien de temps reste-t-il
@@ -677,10 +665,9 @@ dernière réponse complète (LLM + TTS).
 La page se rafraîchit toutes les 2 secondes (`<meta http-equiv="refresh">`,
 aucun JavaScript). Un endpoint `/status` renvoie les mêmes données en JSON.
 
-Désactivé par défaut : `dashboard.enabled: true` pour le lancer. Port configurable via `dashboard.port` (8790 par
-défaut). N'écoute que sur `127.0.0.1`, pas conçu pour être exposé au-delà de
-ta machine. Implémenté avec `http.server` (bibliothèque standard) plutôt
-qu'un framework web.
+Désactivé par défaut : `dashboard.enabled: true` pour le lancer. Port
+configurable via `dashboard.port` (8790 par défaut). N'écoute que sur
+`127.0.0.1`, pas conçu pour être exposé au-delà de ta machine.
 
 ## API satellite
 
@@ -690,7 +677,7 @@ qu'un framework web.
 - `POST /assistant` : le satellite envoie un WAV brut (corps de la requête,
   mono, 16 bits, 16 kHz — le format de `record_until_silence`, 60 s max) avec
   son nom de zone (`X-Zone`) ; Jarvis fait tourner STT → LLM/outils → TTS
-et renvoie la réponse **en flux, phrase par phrase**.
+  et renvoie la réponse **en flux, phrase par phrase**.
 - `GET /notifications` : les sons mis de côté pour ce satellite (minuteur
   terminé...). Le satellite n'accepte aucune connexion entrante : un thread
   de fond les réclame toutes les 3 s. Un minuteur demandé à un satellite
@@ -736,9 +723,10 @@ routage vers `llm.ask_tool_direct`/`ask_with_tools` que la boucle micro
 locale — et le même `LanguageModel` (donc le même historique de
 conversation) : un satellite est une autre façon de parler à Jarvis, pas une
 seconde instance. Un verrou garantit un seul tour de conversation (et une
-seule transcription) à la fois, micro local et satellites confondus. Contrairement à la boucle micro, pas de phrase d'attente
-("Je vérifie ça...") pendant un appel d'outil : le satellite n'a rien à
-jouer tant que la première phrase de la vraie réponse n'est pas prête.
+seule transcription) à la fois, micro local et satellites confondus.
+Contrairement à la boucle micro, pas de phrase d'attente ("Je vérifie
+ça...") pendant un appel d'outil : le satellite n'a rien à jouer tant que la
+première phrase de la vraie réponse n'est pas prête.
 
 ### Client (`satellite/`)
 
@@ -749,11 +737,10 @@ matériel/l'OS/les pilotes du HAT micro, puis
 [satellite/README.md](satellite/README.md) pour le client lui-même.
 
 N'importe **rien** de `server/` (pas d'import cross-dossier ; `wakeword.py` et
-les conversions WAV en sont des copies voulues) :
-STT/LLM/TTS/outils n'existent que côté serveur, le satellite n'a que le
-strict nécessaire pour capter la voix et jouer la réponse — `main.py`
-(boucle mot-clé → enregistrement → `client_api.demander()` → lecture),
-`wakeword.py` (openWakeWord, copie de `server/wakeword.py`), `audio_io.py`
+les conversions WAV en sont des copies voulues). STT/LLM/TTS/outils n'existent
+que côté serveur : le satellite n'a que le strict nécessaire pour capter la
+voix et jouer la réponse — `main.py` (boucle mot-clé → enregistrement →
+`client_api.demander()` → lecture), `wakeword.py`, `audio_io.py`
 (capture/lecture), `client_api.py` (appel HTTP).
 
 **Pas de VAD Silero côté satellite**, contrairement au serveur : ce modèle
@@ -764,9 +751,8 @@ dépend de PyTorch même pour son mode ONNX — bien trop lourd sur un
 Raspberry Pi juste pour détecter un silence. `satellite/audio_io.py` utilise
 donc un seuil de volume (RMS) : 2 × le bruit de fond mesuré au début de
 chaque enregistrement (plafonné, `audio.silence_threshold` servant de
-plancher). Un seuil fixe ne convenait pas : un HAT micro au bruit de fond
-élevé dépassait en permanence le seuil, la fin de parole n'était jamais
-détectée et chaque question attendait la durée max d'enregistrement. Moins
+plancher) : un seuil fixe échouerait avec un HAT micro au bruit de fond élevé
+(fin de parole jamais détectée, attente jusqu'à la durée max). Moins
 robuste que le VAD du serveur face à un bruit de fond très variable (télé,
 radio) — limite connue, pas un oubli.
 
@@ -800,9 +786,9 @@ python main.py --debug-audio
   atteint. S'il reste souvent sous le seuil, baisse `wake_word.threshold`
   (essaie 0.3–0.4).
 - **Pendant l'enregistrement de ta question** : la ligne `[audio] vad=...
-  seuil=0.50 (parole/silence, X/N)` s'affiche en continu — (X/N = blocs de silence comptés / requis, N ≈ 31 avec
-  `silence_duration: 1.0`) — surtout utile
-  pour observer que le VAD fonctionne bien, rarement pour devoir toucher à
+  seuil=0.50 (parole/silence, X/N)` s'affiche en continu (X/N = blocs de
+  silence comptés / requis, N ≈ 31 avec `silence_duration: 1.0`). Surtout
+  utile pour observer que le VAD fonctionne, rarement pour toucher à
   `audio.vad_threshold` (0.5, la valeur recommandée par Silero).
 
 ## Points d'attention
@@ -820,9 +806,8 @@ python main.py --debug-audio
   relativement à sa propre position sur le disque, donc ça fonctionne quel
   que soit le dossier depuis lequel tu lances `python main.py`.
 - **GPU** : `stt.device: cuda` suppose que faster-whisper trouve tes DLL
-  CUDA/cuDNN (`nvidia-cublas-cu12`/`nvidia-cudnn-cu12`). Pour vérifier que le GPU est bien vu par la
-  bonne bibliothèque (`ctranslate2`, déjà installé via `faster-whisper`,
-  aucune dépendance à ajouter) :
+  CUDA/cuDNN (`nvidia-cublas-cu12`/`nvidia-cudnn-cu12`). Pour vérifier que
+  le GPU est vu par `ctranslate2` (déjà installé avec `faster-whisper`) :
   ```powershell
   python -c "import ctranslate2; print(ctranslate2.get_cuda_device_count())"
   ```

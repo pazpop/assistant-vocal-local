@@ -8,12 +8,11 @@ server/satellite_api.py). Le paquet silero-vad sur PyPI dépend de PyTorch
 même pour son mode ONNX — bien trop lourd sur un Raspberry Pi juste pour
 détecter un silence.
 
-Le seuil n'est pas fixe : il s'adapte au bruit de fond du micro mesuré à
-chaque enregistrement (voir DetecteurFinParole). Un seuil fixe trop bas pour
-un HAT micro au bruit de fond élevé prend toute la durée pour de la parole :
-la fin n'est jamais détectée et l'attente va jusqu'à max_record_seconds.
-Moins robuste que le VAD du serveur face à un bruit de fond très variable
-(télé, radio) — limite connue, pas un oubli (voir ARCHITECTURE.md).
+Le seuil s'adapte au bruit de fond du micro, mesuré à chaque enregistrement
+(voir DetecteurFinParole) : un seuil fixe prendrait le bruit d'un HAT pour de
+la parole et n'en détecterait jamais la fin. Moins robuste que le VAD du
+serveur face à un bruit de fond très variable (télé, radio) — limite
+connue (voir ARCHITECTURE.md).
 """
 import queue
 import threading

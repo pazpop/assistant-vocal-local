@@ -5,16 +5,10 @@ Ce qui reste à faire. L'existant (et le pourquoi des choix) est dans
 
 ## Prioritaire
 
-### Dédoublonnage des docs (suite)
-
-- [ ] Purges Open WebUI, contenu d'`install.ps1` et description de l'API
-  satellite restent partiellement répétés entre README, ARCHITECTURE et
-  `config.yml.example` : ne garder qu'ARCHITECTURE, avec des renvois.
-
 ### Suites de la revue du 2026-09-25
 
-- [ ] Tests pour le reste de `launch.py` (seule la version est couverte) : arguments, refus
-  des deux purges combinées, lecture de la version.
+- [ ] Tests pour le reste de `launch.py` (seule la version est couverte) :
+  arguments, refus des deux purges combinées.
 - [ ] Alertes météo : les diffuser aussi aux satellites (aujourd'hui, seul le
   PC les annonce). Même mécanisme que les minuteurs (`BoiteNotifications`).
 - [ ] Sécurité : limiter les essais de clé API.
@@ -116,6 +110,8 @@ passer les noms d'artistes de la bibliothèque à Whisper (`initial_prompt`).
   requêtes/mois), sur le modèle de `weather.py`. Risque : qwen2.5:7b peut
   mal interpréter des extraits. Prototyper, tester sur des questions
   factuelles, puis décider.
+- **Prévisions plus lointaines** (« ce week-end », « lundi », une semaine) :
+  aujourd'hui seuls demain et après-demain sont gérés.
 - **Contrôle du PC** (ouvrir applications/sites par la voix).
 - **ComfyUI** (génération d'images), non prioritaire : la VRAM (6-8 Go) peut
   être incompatible avec Jarvis actif sur 10 Go.

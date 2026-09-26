@@ -2,11 +2,8 @@
 qui affiche l'usage CPU/RAM/VRAM et la latence du pipeline vocal, pour
 visualiser rapidement ce que consomme l'assistant.
 
-N'écoute que sur 127.0.0.1 : pensé pour un accès local uniquement, pas pour
-être exposé sur le réseau. Volontairement construit avec un simple
-http.server (aucune dépendance web ajoutée) : c'est aussi la première brique
-d'une future API locale pour les satellites, qu'on étendra plus tard plutôt
-que de maintenir un serveur séparé rien que pour ce panneau.
+N'écoute que sur 127.0.0.1 : accès local uniquement, pas pour être exposé
+sur le réseau. Simple http.server : aucune dépendance web ajoutée.
 """
 import json
 import threading

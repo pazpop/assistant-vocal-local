@@ -8,9 +8,8 @@ fait tourner Jarvis, via `server/satellite_api.py` — voir
 ## Prérequis
 
 - Matériel choisi, **Raspberry Pi OS 64 bits** installé (`onnxruntime` n'a de
-  paquet prêt à l'emploi que pour cette architecture), pilotes du HAT micro/haut-parleur
-  installés — voir [RASPBERRY_PI_SETUP.md](RASPBERRY_PI_SETUP.md) si ce
-  n'est pas déjà fait.
+  paquet prêt à l'emploi que pour cette architecture) et pilotes du HAT
+  installés — voir [RASPBERRY_PI_SETUP.md](RASPBERRY_PI_SETUP.md).
 - Python 3.12 ou plus (Raspberry Pi OS Trixie : 3.13), déjà présent :
   `python3 --version`. Les versions figées de `requirements.txt` (scipy...)
   n'existent pas en 3.11 ; openwakeword est installé sans `tflite-runtime`,
@@ -117,7 +116,7 @@ seul au tour suivant, sans faire planter le service.
 
 ## Tests
 
-Depuis la racine du dépôt :
+Depuis la racine du dépôt, dans le venv du satellite :
 
 ```bash
 pip install pytest

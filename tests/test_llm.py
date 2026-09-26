@@ -206,10 +206,9 @@ def test_ask_tool_direct_sans_historique_mais_memorise_lechange():
 
 def test_ask_tool_direct_sans_appel_d_outil_appelle_loutil_lui_meme():
     """Garde-fou principal : si le LLM répond en texte libre sans appeler
-    l'outil (constaté en pratique — le modèle invente alors un gabarit non
-    rempli, ex: "[jour], [mois] [année]"), on ne lui fait JAMAIS confiance.
-    L'outil est appelé nous-mêmes, sans argument, et sa réponse déterministe
-    est utilisée à la place du texte halluciné."""
+    l'outil (le modèle invente alors un gabarit non rempli, ex: "[jour],
+    [mois] [année]"), ce texte est ignoré : l'outil est appelé sans argument
+    et sa réponse déterministe est utilisée."""
     lm = _lm_factice()
 
     def fake_chat(model, messages, tools=None, stream=False, keep_alive=None):

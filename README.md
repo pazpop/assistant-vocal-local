@@ -25,8 +25,10 @@ amélioration.
 Mot-clé "Hey Jarvis" · conversation continue · transcription GPU
 (faster-whisper) · LLM local (Ollama) · synthèse vocale (Piper) · domotique
 (Home Assistant) · météo + alertes météo (Open-Meteo, Environnement Canada)
-· minuteurs · date/heure · panneau de ressources local · interface web de
-conversation façon ChatGPT (Open WebUI, optionnelle).
+· prévisions (demain, après-demain) · minuteurs · date/heure · satellites
+Raspberry Pi (micro + haut-parleur dans d'autres pièces) · panneau de
+ressources local · interface web de conversation façon ChatGPT (Open WebUI,
+optionnelle).
 
 Chaque module optionnel s'active/désactive avec `enabled: true/false` dans
 `config.yml` (voir [`config.yml.example`](config.yml.example)). Détails de
@@ -40,11 +42,9 @@ Prérequis : rien — ouvre PowerShell et lance :
 irm https://raw.githubusercontent.com/pazpop/assistant-vocal-local/main/install.ps1 | iex
 ```
 
-Installe Python et Ollama si besoin (**confirmation demandée pour chacun**,
-rien ne s'installe à ton insu), récupère le dépôt, crée le venv, installe
-les dépendances, télécharge le modèle Ollama (`qwen2.5:7b`, ~4,7 Go) et la
-voix Piper. Ne lance rien à la fin — il affiche la commande pour démarrer
-Jarvis toi-même. Détail du script : [ARCHITECTURE.md](ARCHITECTURE.md#installation).
+Il installe ce qui manque (**confirmation demandée**, rien ne s'installe à
+ton insu), prépare le projet et affiche la commande de lancement sans la
+lancer. Détail : [ARCHITECTURE.md](ARCHITECTURE.md#installation).
 
 ```powershell
 cd assistant-vocal-local

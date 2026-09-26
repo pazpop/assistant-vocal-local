@@ -170,14 +170,9 @@ open_webui:
   host: "127.0.0.1"
   # Port d'écoute d'Open WebUI (http://<host>:<port>).
   port: 3000
-  # Clé API Open WebUI (Réglages > Compte > Clés API), nécessaire uniquement
-  # pour `python launch.py --purge-webui-memory`. Active d'abord "Autoriser
-  # les clés API" dans Panneau d'administration > Réglages > Général. Vide =
-  # fonctionnalité indisponible (message clair si tu tentes de l'utiliser).
+  # Clé API Open WebUI, seulement pour `launch.py --purge-webui-memory` (voir
+  # ARCHITECTURE.md#purger-les-données-dopen-webui). Vide = indisponible.
   api_key: ""
-  # Purger les données d'Open WebUI n'est volontairement pas un réglage :
-  # c'est une option de lancement (`python launch.py --help`).
-
 
 update_check:
   # launch.py compare le commit local à celui de `main` sur GitHub au
@@ -186,17 +181,13 @@ update_check:
   enabled: false
 
 satellite:
-  # Active l'API réseau pour les satellites (Raspberry Pi, voir
-  # ARCHITECTURE.md#api-satellite). Écoute sur "host" ci-dessous (0.0.0.0 par
-  # défaut) pour être joignable depuis le réseau local, en HTTP clair : à
-  # réserver à un réseau de confiance. Refusée sans clé API assez longue.
+  # API réseau pour les satellites Raspberry Pi (voir
+  # ARCHITECTURE.md#api-satellite) : HTTP en clair, réseau de confiance.
   enabled: false
-  # "0.0.0.0" = joignable depuis tout le réseau local ; restreins à une IP
-  # précise si ta machine en a plusieurs et que tu veux limiter l'exposition.
+  # "0.0.0.0" = joignable depuis tout le réseau local ; une IP précise limite
+  # l'exposition.
   host: "0.0.0.0"
   port: 8791
-  # Jeton partagé, à coller aussi dans la config du satellite (identique des
-  # deux côtés). Obligatoire : sans clé (valeur vide), l'API refuse toute
-  # requête plutôt que d'accepter n'importe quel appareil du réseau. 16
-  # caractères minimum. Génère une valeur avec : python generate_api_key.py
+  # Jeton partagé avec le satellite, 16 caractères minimum (vide = tout est
+  # refusé). Génère-le avec : python generate_api_key.py
   api_key: ""

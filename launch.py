@@ -1,6 +1,5 @@
-"""Lance la stack Jarvis (+ Open WebUI en option) en un seul script, sans
-Docker : chaque composant tourne dans son propre venv, comme processus
-séparé de ce script.
+"""Lance la stack Jarvis (+ Open WebUI en option) en un seul script.
+Chaque composant tourne dans son propre venv, comme processus séparé.
 
 Ne démarre PAS Ollama : c'est un service Windows qui tourne déjà en
 arrière-plan une fois installé — voir README.md. Ce script vérifie
@@ -270,7 +269,7 @@ def arreter(processus: subprocess.Popen, nom: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Lance la stack Jarvis (+ Open WebUI en option), sans Docker."
+        description="Lance la stack Jarvis (+ Open WebUI en option)."
     )
     parser.add_argument(
         "--purge-webui",

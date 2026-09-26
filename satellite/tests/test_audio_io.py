@@ -53,9 +53,9 @@ def test_piece_calme_se_comporte_comme_un_seuil_fixe():
 
 
 def test_bruit_de_fond_constant_eleve_ne_compte_pas_comme_parole():
-    """Le cas réel du HAT micro : un niveau de fond constant au-dessus du seuil
-    configuré. Avec un seuil fixe, tout était de la parole et l'attente allait
-    jusqu'à la durée max ; le bruit seul ne doit jamais démarrer la parole."""
+    """Un niveau de fond constant au-dessus du seuil configuré (cas d'un HAT
+    micro) ne doit jamais démarrer la parole, sinon la fin n'est jamais
+    détectée."""
     d = _detecteur(seuil_min=0.02)
     resultats = _nourrir(d, [0.05] * 100)
 
