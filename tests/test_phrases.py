@@ -75,6 +75,7 @@ def test_decouper_ignore_le_vide():
         ("Voir [la doc](https://exemple.org/page) ici.", "Voir la doc ici."),
         ("snake_case_var reste intact.", "snake_case_var reste intact."),
         ("Texte simple, sans rien.", "Texte simple, sans rien."),
+        ("2 * 3 = 6", "2 fois 3 = 6"),
         ("**", ""),
     ],
 )

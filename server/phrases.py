@@ -22,6 +22,7 @@ def nettoyer_pour_la_voix(texte: str) -> str:
     texte = _LIEN.sub(r"\1", texte)
     texte = _TITRE_OU_PUCE.sub("", texte)
     texte = _SOULIGNE.sub(r"\1", texte)
+    texte = re.sub(r"(?<=\d)\s*\*\s*(?=\d)", " fois ", texte)  # 2*3, pas du Markdown
     texte = re.sub(r"[*`]+", "", texte)
     return re.sub(r"\s+", " ", texte).strip()
 
