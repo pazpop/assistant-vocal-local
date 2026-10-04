@@ -1,0 +1,66 @@
+name: Tests
+
+# Valide que le code Python tourne sur Linux (le poste de dev habituel est
+# Windows) — pas de GPU sur ce runner, donc seul le chemin stt.device: cpu
+# est réellement couvert, jamais stt.device: cuda (voir ROADMAP.md).
+# Actions épinglées par SHA (un tag peut être déplacé) ; Dependabot propose les mises à jour.
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.11"
+
+      # sounddevice (capture micro) a besoin de PortAudio au niveau système
+      # sous Linux, pas juste du paquet pip.
+      - name: Dépendance système audio (PortAudio)
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+
+      # nvidia-cublas-cu12/nvidia-cudnn-cu12 ne servent qu'au GPU NVIDIA
+      # (voir requirements.txt) — inutiles et lourds à télécharger ici.
+      - name: Retire les paquets GPU NVIDIA de requirements.txt
+        run: sed -i '/^nvidia-cublas-cu12/d;/^nvidia-cudnn-cu12/d' requirements.txt
+
+      - name: Installe les dépendances
+        run: pip install -r requirements.txt pytest
+
+      - name: Lance les tests (serveur)
+        run: pytest tests/ -v
+
+  # Job séparé : le satellite cible Python 3.13 (Raspberry Pi OS Trixie) et
+  # ses dépendances figées (scipy...) n'existent pas en 3.11. Venv distinct
+  # aussi, pour détecter un paquet oublié dans satellite/requirements.txt.
+  # server/ et satellite/ définissent chacun un module "config"/"audio_io" :
+  # deux invocations pytest séparées (sys.modules est un cache global).
+  pytest-satellite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+
+      - name: Dépendance système audio (PortAudio)
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+
+      - name: Installe les dépendances (satellite)
+        run: |
+          pip install --no-deps openwakeword==0.6.0
+          pip install -r satellite/requirements.txt pytest
+
+      - name: Lance les tests (satellite)
+        run: pytest satellite/tests/ -v
