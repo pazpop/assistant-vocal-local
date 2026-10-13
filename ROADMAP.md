@@ -36,6 +36,8 @@ Ce qui reste à faire. L'existant (et le pourquoi des choix) est dans
 Procédure matériel/OS/pilotes :
 [satellite/RASPBERRY_PI_SETUP.md](satellite/RASPBERRY_PI_SETUP.md).
 
+- [ ] Afficher dans la console du serveur quand un satellite se connecte
+  (avec sa zone).
 - [ ] Conversation continue côté satellite (réécouter après une réponse sans
   redire « Hey Jarvis »).
 - [ ] Vrai VAD sur le Pi (`pysilero-vad`, à vérifier sans PyTorch en Python
