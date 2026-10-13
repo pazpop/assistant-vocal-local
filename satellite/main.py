@@ -36,14 +36,32 @@ def afficher_etape(etape: str, **infos: float) -> None:
 
 def jouer_les_notifications() -> None:
     """Tourne dans un thread de fond : joue les sons en attente côté serveur.
-    Serveur injoignable = on réessaie au tour suivant, sans bruit (la boucle
-    principale signale déjà les échecs d'une vraie question)."""
+    Sert aussi de vérification de la connexion (adresse, clé API) : affiche
+    une ligne quand le serveur devient injoignable et quand il revient — pas
+    à chaque essai, pour ne pas noyer le journal. Dans tous les cas, on
+    réessaie au tour suivant."""
+    joignable = None  # inconnu tant que le 1er essai n'est pas terminé
     while True:
         try:
-            for audio, sample_rate in client_api.recuperer_notifications():
-                play_audio(audio, sample_rate)
-        except Exception:  # noqa: BLE001 - réseau, lecture audio : rien de grave, on réessaie
-            pass
+            notifications = client_api.recuperer_notifications()
+        except Exception as exc:  # noqa: BLE001 - réseau, clé refusée, flux corrompu : on réessaie
+            if joignable is not False:
+                print(
+                    f"⚠️  Serveur injoignable à {config.SERVER_URL} : {exc}\n"
+                    "   Vérifie server.url (l'IP du PC a peut-être changé) et "
+                    "server.api_key dans config.yml, et que Jarvis tourne sur le PC.",
+                    flush=True,
+                )
+            joignable = False
+        else:
+            if joignable is not True:
+                print(f"✅ Serveur joint à {config.SERVER_URL}", flush=True)
+            joignable = True
+            try:
+                for audio, sample_rate in notifications:
+                    play_audio(audio, sample_rate)
+            except Exception:  # noqa: BLE001 - lecture audio : rien de grave, on réessaie
+                pass
         time.sleep(INTERVALLE_NOTIFICATIONS_S)
 
 
@@ -74,6 +92,8 @@ def main() -> None:
     print("Chargement du modèle de mot-clé (ça peut prendre quelques secondes)...")
     detector = WakeWordDetector()
     bip = generer_bip(config.SAMPLE_RATE)
+    # Grave et long : sans écran, c'est le seul signe que la question n'est pas passée.
+    bip_erreur = generer_bip(config.SAMPLE_RATE, frequence=220.0, duree=0.5)
 
     threading.Thread(target=jouer_les_notifications, daemon=True).start()
 
@@ -122,6 +142,7 @@ def main() -> None:
                     duree_lue += phrase_audio.size / sample_rate
             except requests.RequestException as exc:
                 print(f"⚠️  Échange avec le serveur interrompu : {exc}\n")
+                play_audio(bip_erreur, config.SAMPLE_RATE)
                 continue
 
             print(f"🔈 Réponse jouée : {nb_phrases} phrase(s), {duree_lue:.1f} s d'audio")

@@ -22,7 +22,7 @@ fait tourner Jarvis, via `server/satellite_api.py` — voir
 
 ```bash
 sudo apt update
-sudo apt install -y python3-venv libportaudio2
+sudo apt install -y python3-venv libportaudio2 git
 git clone https://github.com/pazpop/assistant-vocal-local.git
 cd assistant-vocal-local/satellite
 python3 -m venv .venv
