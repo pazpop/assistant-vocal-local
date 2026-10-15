@@ -114,8 +114,20 @@ passer les noms d'artistes de la bibliothèque à Whisper (`initial_prompt`).
 - **Prévisions plus lointaines** (« ce week-end », « lundi », une semaine) :
   aujourd'hui seuls demain et après-demain sont gérés.
 - **Contrôle du PC** (ouvrir applications/sites par la voix).
-- **ComfyUI** (génération d'images), non prioritaire : la VRAM (6-8 Go) peut
-  être incompatible avec Jarvis actif sur 10 Go.
+- **Génération d'images et de son en local**, via Open WebUI, sans application
+  tierce (piste, rien de décidé ; non prioritaire) :
+  - Images : petit serveur Python (FastAPI + Hugging Face Diffusers) exposant
+    une route compatible OpenAI (`/v1/images/generations`), déclaré dans Open
+    WebUI comme moteur d'images « OpenAI » avec l'URL du serveur. Modèles à
+    essayer sur 10 Go : SDXL / SDXL Turbo (le plus sûr), Z-Image Turbo
+    (quantifié ou avec déchargement vers la RAM) ; FLUX seulement quantifié,
+    lent. Variante Rust possible avec `candle` (SDXL), à mesurer.
+  - Son : Open WebUI ne génère pas de musique ; passer par un « Tool » Python
+    qui appelle MusicGen (petit modèle) ou HeartMuLa en local et renvoie un
+    fichier audio. Licences et besoins en VRAM à vérifier.
+  - Point bloquant à lever : la VRAM est partagée avec Jarvis (LLM + STT/TTS)
+    sur 10 Go. Prévoir de décharger le LLM avant la génération, ou de
+    générer sur une autre machine. Prototyper, mesurer, puis décider.
 - **Intégration Wyoming** (protocole de Home Assistant Voice), pour utiliser
   d'autres satellites que le client maison.
 - **Bench d'un modèle plus adapté au français + appels d'outils** que
