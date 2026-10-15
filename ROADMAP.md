@@ -128,6 +128,8 @@ passer les noms d'artistes de la bibliothèque à Whisper (`initial_prompt`).
   - Point bloquant à lever : la VRAM est partagée avec Jarvis (LLM + STT/TTS)
     sur 10 Go. Prévoir de décharger le LLM avant la génération, ou de
     générer sur une autre machine. Prototyper, mesurer, puis décider.
+- **Envoyer des messages sur Meshtastic** depuis Jarvis, sans mettre le node
+  sur le réseau.
 - **Intégration Wyoming** (protocole de Home Assistant Voice), pour utiliser
   d'autres satellites que le client maison.
 - **Bench d'un modèle plus adapté au français + appels d'outils** que
