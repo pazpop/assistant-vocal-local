@@ -5,6 +5,30 @@ module. Pour l'installation et le démarrage rapide, voir le
 [README](README.md). Pour ce qui est prévu ensuite, voir la
 [Roadmap](ROADMAP.md).
 
+## Sommaire
+
+- [Schéma](#schéma)
+- [Pourquoi ces choix](#pourquoi-ces-choix)
+- [Arborescence](#arborescence)
+- [Modules et configuration](#modules-et-configuration)
+- [Installation](#installation)
+- [Vérification de version](#vérification-de-version)
+- [Installation avancée](#installation-avancée)
+- [Open WebUI](#open-webui)
+- [Domotique : Home Assistant en local](#domotique--home-assistant-en-local)
+- [Conversation continue](#conversation-continue)
+- [Localisation (météo + date/heure)](#localisation-météo--dateheure)
+- [Météo](#météo)
+- [Alertes météo](#alertes-météo)
+- [Date et heure](#date-et-heure)
+- [Minuteurs](#minuteurs)
+- [Panneau de ressources](#panneau-de-ressources)
+- [API satellite](#api-satellite)
+- [Calibrer le micro (`--debug-audio`)](#calibrer-le-micro---debug-audio)
+- [Points d'attention](#points-dattention)
+- [Limites connues](#limites-connues)
+- [Note sur le coût énergétique de conception](#note-sur-le-coût-énergétique-de-conception)
+
 ## Schéma
 
 Deux types d'hôtes. Le **serveur** (ici un PC Windows) fait tout le
